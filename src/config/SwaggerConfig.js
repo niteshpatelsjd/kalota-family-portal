@@ -9,6 +9,11 @@ const swaggerOptions = {
       description: "API documentation for Kalota Family Portal Backend Service",
     },
     servers: [
+      
+      {
+        url: "https://kalota-family-portal-backend.onrender.com",
+        description: "Local server",
+      },
       {
         url: "http://localhost:7000",
         description: "Local server",
