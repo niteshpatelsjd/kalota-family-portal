@@ -121,61 +121,186 @@ async function addDistrict(districtRequest) {
 }
 
 // Get All Districts
-async function getAllDistrict(pageIndex, pageSize, status, searchText) {
+async function getAllDistrict(
+  pageIndex,
+  pageSize,
+  status,
+  searchText
+) {
+
   try {
+
     let query = {
       status: {
-        $in: [DataConstant.SHORT_ONE, DataConstant.SHORT_TWO],
+        $in: [
+          DataConstant.SHORT_ONE,
+          DataConstant.SHORT_TWO,
+        ],
       },
     };
 
-    if (status !== undefined && status !== null && status !== "") {
-      const parsedStatus = parseInt(status, 10);
+    /*
+     * Status Filter
+     */
 
-      if (!isNaN(parsedStatus)) {
-        query.status = parsedStatus;
+    if (
+      status !== undefined &&
+      status !== null &&
+      status !== ""
+    ) {
+
+      const parsedStatus =
+        parseInt(status, 10);
+
+      if (
+        !isNaN(parsedStatus)
+      ) {
+
+        query.status =
+          parsedStatus;
       }
     }
 
-    if (searchText && searchText.trim() !== "") {
+    /*
+     * Search Filter
+     */
+
+    if (
+      searchText &&
+      searchText.trim() !== ""
+    ) {
+
       query.name = {
-        $regex: searchText.trim(),
+        $regex:
+          searchText.trim(),
+
         $options: "i",
       };
     }
 
-    pageIndex = parseInt(pageIndex) || 0;
-    pageSize = parseInt(pageSize) || 10;
+    /*
+     * Pagination
+     */
 
-    const skip = pageIndex * pageSize;
+    pageIndex =
+      parseInt(pageIndex) || 0;
 
-    const [data, total] = await Promise.all([
+    pageSize =
+      parseInt(pageSize) || 10;
+
+    const skip =
+      pageIndex * pageSize;
+
+    /*
+     * Fetch Data
+     */
+
+    const [
+      data,
+      total,
+      totalDistrict,
+      totalActive,
+      totalInactive,
+    ] = await Promise.all([
+
       District.find(query)
-        .sort({ createdAt: -1 })
+        .sort({
+          createdAt: -1,
+        })
         .skip(skip)
         .limit(pageSize),
 
-      District.countDocuments(query),
+      District.countDocuments(
+        query
+      ),
+
+      /*
+       * Total District
+       */
+
+      District.countDocuments({
+        status: {
+          $in: [
+            DataConstant.SHORT_ONE,
+            DataConstant.SHORT_TWO,
+          ],
+        },
+      }),
+
+      /*
+       * Total Active
+       */
+
+      District.countDocuments({
+        status:
+          DataConstant.SHORT_ONE,
+      }),
+
+      /*
+       * Total Inactive
+       */
+
+      District.countDocuments({
+        status:
+          DataConstant.SHORT_TWO,
+      }),
     ]);
 
+    /*
+     * No Records
+     */
+
     if (!data.length) {
+
       return buildResponse(
         DataConstant.NOT_FOUND,
         DataConstant.RECORD_NOT_FOUND
       );
     }
 
-    return buildResponse(DataConstant.OK, DataConstant.RECORD_FOUND, {
-      content: data,
-      pageIndex,
-      pageSize,
-      total,
-      totalPages: Math.ceil(total / pageSize),
-      hasNext: skip + data.length < total,
-      hasPrevious: pageIndex > 0,
-    });
+    /*
+     * Success Response
+     */
+
+    return buildResponse(
+      DataConstant.OK,
+      DataConstant.RECORD_FOUND,
+      {
+        content: data,
+
+        pageIndex,
+
+        pageSize,
+
+        total,
+
+        totalPages:
+          Math.ceil(
+            total / pageSize
+          ),
+
+        hasNext:
+          skip + data.length <
+          total,
+
+        hasPrevious:
+          pageIndex > 0,
+
+        totalDistrict,
+
+        totalActive,
+
+        totalInactive,
+      }
+    );
+
   } catch (err) {
-    logger.error("Error in getAllDistrict: %s", err.stack || err.message);
+
+    logger.error(
+      "Error in getAllDistrict: %s",
+      err.stack ||
+      err.message
+    );
 
     return buildResponse(
       DataConstant.SERVER_ERROR,
