@@ -4693,3 +4693,6 @@
 {"level":"info","message":"Starting getPersonsByFamilyIdService","timestamp":"2026-06-09 23:40:19"}
 {"level":"info","message":"Fetching persons by familyId","timestamp":"2026-06-09 23:40:19"}
 {"level":"info","message":"Profiles fetched successfully","timestamp":"2026-06-09 23:40:20"}
+{"level":"info","message":"Starting getPersonsByFamilyIdService","timestamp":"2026-06-09 23:42:14"}
+{"level":"info","message":"Fetching persons by familyId","timestamp":"2026-06-09 23:42:14"}
+{"level":"info","message":"Profiles fetched successfully","timestamp":"2026-06-09 23:42:14"}
