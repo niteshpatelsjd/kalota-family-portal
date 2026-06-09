@@ -1,5 +1,5 @@
 // controllers/FamilyController.js
-
+const logger = require("../utils/logger");
 const FamilyService = require("../services/FamilyService");
 
 // Create Family Head
@@ -61,7 +61,62 @@ async function getFamilyProfileById(req, res) {
   }
 }
 
+
+/* ───────────────── GET ALL FAMILIES ───────────────── */
+
+async function getAllFamilies(
+  req,
+  res
+) {
+  try {
+    logger.info(
+      "FamilyController => getAllFamilies"
+    );
+
+    const {
+      pageIndex,
+      pageSize,
+      status,
+      searchText,
+      districtId,
+      tehsilId,
+      villageId,
+    } = req.query;
+
+    const response =
+      await FamilyService.getAllFamilies(
+        pageIndex,
+        pageSize,
+        status,
+        searchText,
+        districtId,
+        tehsilId,
+        villageId
+      );
+
+    return res
+      .status(response.responseCode)
+      .json(response);
+
+  } catch (err) {
+
+    logger.error(
+      "Error in getAllFamilies controller: %s",
+      err.stack || err.message
+    );
+
+    return res.status(500).json(
+      buildResponse(
+        500,
+        "Internal Server Error"
+      )
+    );
+  }
+}
+
+
 module.exports = {
+  getAllFamilies,
   createFamilyHead,
   checkDuplicateFamily,
   getFamilyProfileById,

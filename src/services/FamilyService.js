@@ -713,8 +713,310 @@ async function getFamilyProfileById(
   }
 }
 
+/* ───────────────── GET ALL FAMILIES ───────────────── */
+
+async function getAllFamilies(
+  pageIndex,
+  pageSize,
+  status,
+  searchText,
+  districtId,
+  tehsilId,
+  villageId
+) {
+  try {
+
+    let query = {
+      status: {
+        $in: [
+          DataConstant.SHORT_ONE,
+          DataConstant.SHORT_TWO,
+        ],
+      },
+    };
+
+    /* ───────── FILTER BY DISTRICT ───────── */
+
+    if (districtId) {
+      query.districtId = districtId;
+    }
+
+    /* ───────── FILTER BY TEHSIL ───────── */
+
+    if (tehsilId) {
+      query.tehsilId = tehsilId;
+    }
+
+    /* ───────── FILTER BY VILLAGE ───────── */
+
+    if (villageId) {
+      query.villageId = villageId;
+    }
+
+    /* ───────── FILTER BY STATUS ───────── */
+
+    if (
+      status !== undefined &&
+      status !== null &&
+      status !== ""
+    ) {
+
+      const parsedStatus =
+        parseInt(status, 10);
+
+      if (!isNaN(parsedStatus)) {
+        query.status = parsedStatus;
+      }
+    }
+
+    /* ───────── SEARCH ───────── */
+
+    if (
+      searchText &&
+      searchText.trim() !== ""
+    ) {
+
+      query.$or = [
+        {
+          familyId: {
+            $regex:
+              searchText.trim(),
+            $options: "i",
+          },
+        },
+
+        {
+          familyTitle: {
+            $regex:
+              searchText.trim(),
+            $options: "i",
+          },
+        },
+      ];
+    }
+
+    /* ───────── PAGINATION ───────── */
+
+    pageIndex =
+      parseInt(pageIndex) || 0;
+
+    pageSize =
+      parseInt(pageSize) || 10;
+
+    const skip =
+      pageIndex * pageSize;
+
+    /* ───────── FETCH DATA ───────── */
+
+    const [data, total] =
+      await Promise.all([
+
+        Family.find(query)
+
+          .populate("districtId")
+
+          .populate("tehsilId")
+
+          .populate("villageId")
+
+          .populate(
+            "familyHeadId"
+          )
+
+          .sort({
+            createdAt: -1,
+          })
+
+          .skip(skip)
+
+          .limit(pageSize),
+
+        Family.countDocuments(
+          query
+        ),
+      ]);
+
+    /* ───────── TOTAL COUNTS ───────── */
+
+    const [
+      totalFamilies,
+      totalActive,
+      totalInactive,
+    ] = await Promise.all([
+
+      Family.countDocuments(),
+
+      Family.countDocuments({
+        status:
+          DataConstant.SHORT_ONE,
+      }),
+
+      Family.countDocuments({
+        status:
+          DataConstant.SHORT_TWO,
+      }),
+    ]);
+
+    /* ───────── FORMAT RESPONSE ───────── */
+
+    const formattedData =
+      data.map((item) => ({
+
+        id: item._id,
+
+        familyId:
+          item.familyId,
+
+        familyTitle:
+          item.familyTitle,
+
+        totalMembers:
+          item.totalMembers,
+
+        status:
+          item.status,
+
+        familyHead:
+          item.familyHeadId
+            ? {
+                id:
+                  item
+                    .familyHeadId
+                    ._id,
+
+                firstName:
+                  item
+                    .familyHeadId
+                    .firstName,
+
+                middleName:
+                  item
+                    .familyHeadId
+                    .middleName,
+
+                lastName:
+                  item
+                    .familyHeadId
+                    .lastName,
+
+                mobile:
+                  item
+                    .familyHeadId
+                    .mobile,
+
+                profileImage:
+                  item
+                    .familyHeadId
+                    .profileImage,
+              }
+            : null,
+
+        district:
+          item.districtId
+            ? {
+                id:
+                  item
+                    .districtId
+                    ._id,
+
+                name:
+                  item
+                    .districtId
+                    .name,
+              }
+            : null,
+
+        tehsil:
+          item.tehsilId
+            ? {
+                id:
+                  item
+                    .tehsilId
+                    ._id,
+
+                name:
+                  item
+                    .tehsilId
+                    .name,
+              }
+            : null,
+
+        village:
+          item.villageId
+            ? {
+                id:
+                  item
+                    .villageId
+                    ._id,
+
+                name:
+                  item
+                    .villageId
+                    .name,
+              }
+            : null,
+
+        createdAt:
+          item.createdAt,
+
+        updatedAt:
+          item.updatedAt,
+      }));
+
+    /* ───────── RETURN RESPONSE ───────── */
+
+    return buildResponse(
+      DataConstant.OK,
+      DataConstant.RECORD_FOUND,
+      {
+        content:
+          formattedData,
+
+        pageIndex,
+
+        pageSize,
+
+        total,
+
+        totalPages:
+          Math.ceil(
+            total / pageSize
+          ),
+
+        hasNext:
+          skip +
+            data.length <
+          total,
+
+        hasPrevious:
+          pageIndex > 0,
+
+        // EXTRA COUNTS
+        totalFamilies,
+
+        totalActive,
+
+        totalInactive,
+      }
+    );
+
+  } catch (err) {
+
+    logger.error(
+      "Error in getAllFamilies: %s",
+      err.stack ||
+        err.message
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      DataConstant.SERVER_MESSAGE
+    );
+  }
+}
 module.exports = {
   createFamilyHead,
   checkDuplicateFamily,
   getFamilyProfileById,
+  getAllFamilies,
 };

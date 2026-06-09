@@ -178,4 +178,61 @@ router.get(
   familyController.getFamilyProfileById
 );
 
+
+/**
+ * @openapi
+ * /admin/family/getAllFamilies:
+ *   get:
+ *     tags: [Family Controller]
+ *     summary: Get all families with pagination and filters
+ *
+ *     parameters:
+ *       - in: query
+ *         name: pageIndex
+ *         schema:
+ *           type: integer
+ *         example: 0
+ *
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *         example: 10
+ *
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: integer
+ *           enum: [1, 2]
+ *         description: 1 = Active, 2 = Inactive
+ *
+ *       - in: query
+ *         name: searchText
+ *         schema:
+ *           type: string
+ *         description: Search by familyId or familyTitle
+ *
+ *       - in: query
+ *         name: districtId
+ *         schema:
+ *           type: string
+ *
+ *       - in: query
+ *         name: tehsilId
+ *         schema:
+ *           type: string
+ *
+ *       - in: query
+ *         name: villageId
+ *         schema:
+ *           type: string
+ *
+ *     responses:
+ *       200:
+ *         description: Family list fetched successfully
+ */
+router.get(
+  "/getAllFamilies",
+  familyController.getAllFamilies
+);
 module.exports = router;
