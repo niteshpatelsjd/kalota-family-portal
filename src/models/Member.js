@@ -22,7 +22,7 @@ const MemberSchema = new mongoose.Schema(
     familyId: { type: String, required: true, index: true, trim: true },
     matchedProfileId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "FamilyProfile",
+      ref: "Family",
       default: null,
     },
     isFamilyHead: { type: Boolean, default: false },

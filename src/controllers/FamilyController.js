@@ -1,45 +1,68 @@
-const familyService = require("../services/FamilyService");
+// controllers/FamilyController.js
 
-exports.createFamily = async (req, res) => {
-  const result = await familyService.createFamily(req.body);
-  res.status(200).json(result);
-};
+const FamilyService = require("../services/FamilyService");
 
-exports.addProfile = async (req, res) => {
-  const result = await familyService.addProfile(req.body);
-  res.status(200).json(result);
-};
+// Create Family Head
+async function createFamilyHead(req, res) {
+  try {
+    const response =
+      await FamilyService.createFamilyHead(
+        req.body,
+        req.file
+      );
 
-exports.updateProfile = async (req, res) => {
-  const result = await familyService.updateProfile(req.params.id, req.body);
-  res.status(200).json(result);
-};
+    return res.status(response.responseCode).json(response);
 
-exports.getFamilyDetails = async (req, res) => {
-  const result = await familyService.getFamilyDetails(req.params.familyId);
-  res.status(200).json(result);
-};
+  } catch (err) {
 
-exports.getAllFamilies = async (req, res) => {
-  const { pageIndex = 0, pageSize = 10, searchText, district, tehsil, village } = req.query;
-  const result = await familyService.getAllFamilies({
-    pageIndex: parseInt(pageIndex, 10),
-    pageSize: parseInt(pageSize, 10),
-    searchText,
-    district,
-    tehsil,
-    village,
-  });
-  res.status(200).json(result);
-};
+    return res.status(500).json({
+      code: 500,
+      message: err.message,
+    });
+  }
+}
 
-exports.searchFamiliesForRegistration = async (req, res) => {
-  const result = await familyService.searchFamiliesForRegistration(req.query);
-  res.status(200).json(result);
-};
+// Check Duplicate Family
+async function checkDuplicateFamily(req, res) {
+  try {
+    const response =
+      await FamilyService.checkDuplicateFamily(
+        req.body
+      );
 
-exports.blockUnblockFamily = async (req, res) => {
-  const { familyId, status } = req.body;
-  const result = await familyService.blockUnblockFamily(familyId, status);
-  res.status(200).json(result);
+    return res.status(response.responseCode).json(response);
+
+  } catch (err) {
+
+    return res.status(500).json({
+      code: 500,
+      message: err.message,
+    });
+  }
+}
+
+// Get Family Profile
+async function getFamilyProfileById(req, res) {
+  try {
+
+    const response =
+      await FamilyService.getFamilyProfileById(
+        req.query.familyId
+      );
+
+    return res.status(response.responseCode).json(response);
+
+  } catch (err) {
+
+    return res.status(500).json({
+      code: 500,
+      message: err.message,
+    });
+  }
+}
+
+module.exports = {
+  createFamilyHead,
+  checkDuplicateFamily,
+  getFamilyProfileById,
 };

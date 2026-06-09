@@ -1,38 +1,147 @@
-const Family = require("../models/Family");
+// repositories/FamilyRepository.js
+const logger = require("../utils/logger");
 
-async function create(data) {
-  return await new Family(data).save();
+const mongoose = require("mongoose");
+const Family =
+  require("../models/Family");
+
+const Person =
+  require("../models/Person");
+
+/* ───────────────── FIND FAMILY BY FAMILY ID ───────────────── */
+
+async function findFamilyByFamilyId(
+  familyId
+) {
+
+  return await Family.findOne({
+    familyId,
+  });
 }
 
-async function findByFamilyId(familyId) {
-  return await Family.findOne({ familyId });
-}
+/* ───────────────── INCREMENT FAMILY MEMBERS ───────────────── */
 
-async function findById(id) {
-  return await Family.findById(id);
-}
+async function incrementFamilyMembers(
+  familyRefId,
+  session
+) {
 
-async function updateByFamilyId(familyId, updateData) {
-  return await Family.findOneAndUpdate(
-    { familyId },
-    { ...updateData, updatedAt: new Date() },
-    { new: true }
+  return await Family.findByIdAndUpdate(
+    familyRefId,
+    {
+      $inc: {
+        totalMembers: 1,
+      },
+    },
+    {
+      new: true,
+      session,
+    }
   );
 }
 
-function findAll(query) {
-  return Family.find(query);
+/* ───────────────── DECREMENT FAMILY MEMBERS ───────────────── */
+
+async function decrementFamilyMembers(
+  familyId,
+  session = null
+) {
+
+  return await Family.findByIdAndUpdate(
+    familyId,
+    {
+      $inc: {
+        totalMembers: -1,
+      },
+    },
+    {
+      new: true,
+      session,
+    }
+  );
 }
 
-async function countDocuments(query) {
-  return await Family.countDocuments(query);
+/* ───────────────── FIND DUPLICATE FAMILY ───────────────── */
+
+
+async function findDuplicateFamily({
+  firstName,
+  lastName,
+  fatherFirstName,
+  motherFirstName,
+  dob,
+  villageId,
+}) {
+
+  logger.info(
+    "Running duplicate family query"
+  );
+
+  return await Person.findOne({
+
+    relationType: "HEAD",
+
+    firstName: {
+      $regex: firstName.trim(),
+      $options: "i",
+    },
+
+    lastName: {
+      $regex: `^${lastName.trim()}$`,
+      $options: "i",
+    },
+
+    fatherFirstName: {
+      $regex: fatherFirstName.trim(),
+      $options: "i",
+    },
+
+    motherFirstName: {
+      $regex: motherFirstName.trim(),
+      $options: "i",
+    },
+
+    dob: dob.trim(),
+
+    villageId:
+      new mongoose.Types.ObjectId(
+        villageId
+      ),
+
+    status: 1,
+  });
+}
+
+
+
+/* ───────────────── CREATE FAMILY ───────────────── */
+
+async function createFamily(
+  payload,
+  session = null
+) {
+
+  const family =
+    await Family.create(
+      [payload],
+      { session }
+    );
+
+  return family[0];
+}
+
+/* ───────────────── GET FAMILY COUNT ───────────────── */
+
+async function getFamilyCount() {
+
+  return await Family.countDocuments();
 }
 
 module.exports = {
-  create,
-  findByFamilyId,
-  findById,
-  updateByFamilyId,
-  findAll,
-  countDocuments,
+  findFamilyByFamilyId,
+  incrementFamilyMembers,
+  decrementFamilyMembers,
+  findDuplicateFamily,
+  createFamily,
+  getFamilyCount,
 };

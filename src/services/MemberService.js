@@ -3,9 +3,8 @@ const jwtUtil = require("../utils/JwtUtil");
 const buildResponse = require("../utils/response");
 const memberRepo = require("../repositories/MemberRepository");
 const familyRepo = require("../repositories/FamilyRepository");
-const familyProfileRepo = require("../repositories/FamilyProfileRepository");
 const memberSessionRepo = require("../repositories/MemberSessionRepository");
-const FamilyProfile = require("../models/FamilyProfile");
+
 
 async function requestOtp(mobileNumber) {
   try {

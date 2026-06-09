@@ -12,6 +12,10 @@ const locationRoutes = require("./routes/LocationRoute");
 const familyRoutes = require("./routes/FamilyRoute");
 const memberRoutes = require("./routes/MemberRoute");
 const memberAdminRoutes = require("./routes/MemberAdminRoute");
+const districtRoutes = require("./routes/DistrictRoute");
+const tehsilRoutes = require("./routes/TehsilRoute");
+const villageRoutes = require("./routes/VillageRoute");
+const personRoutes = require("./routes/PersonRoute");
 const swaggerSpec = require("./config/SwaggerConfig");
 
 const app = express();
@@ -23,6 +27,11 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads"), { maxAge: "1
 
 app.use("/admin/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+app.get("/admin/docs-json", (req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.send(swaggerSpec);
+});
+
 app.use("/admin/user", adminUserRoutes);
 app.use("/admin/module", moduleRoutes);
 app.use("/admin/role", roleRoutes);
@@ -30,6 +39,10 @@ app.use("/admin/location", locationRoutes);
 app.use("/admin/family", familyRoutes);
 app.use("/admin/member", memberAdminRoutes);
 app.use("/member", memberRoutes);
+app.use("/admin/district", districtRoutes);
+app.use("/admin/tehsil", tehsilRoutes);
+app.use("/admin/village", villageRoutes);
+app.use("/admin/person", personRoutes);
 
 app.get("/health", (_, res) => res.json({ status: "up" }));
 

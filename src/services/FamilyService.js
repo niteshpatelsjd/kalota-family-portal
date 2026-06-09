@@ -1,268 +1,720 @@
-const familyRepo = require("../repositories/FamilyRepository");
-const familyProfileRepo = require("../repositories/FamilyProfileRepository");
+
+const mongoose = require("mongoose");
+
+const Family = require("../models/Family");
+const Village = require("../models/Village");
+
+const logger = require("../utils/logger");
 const buildResponse = require("../utils/response");
 
-async function createFamily(data) {
+const {
+  findDuplicateFamily,
+  createFamily,
+  findFamilyByFamilyId,
+  incrementFamilyMembers,
+  decrementFamilyMembers,
+} = require("../repositories/FamilyRepository");
+
+const {
+  createPerson,
+  updatePerson,
+  deletePerson,
+  getPersonById,
+  getPersonsByFamilyId,
+} = require("../repositories/PersonRepository");
+
+const {
+  generateFamilyId,
+} = require("../utils/GenerateFamilyId");
+
+const {
+  uploadFile,
+} = require("../utils/FileUtil");
+
+const DataConstant = {
+  OK: 200,
+  BAD_REQUEST: 400,
+  NOT_FOUND: 404,
+  SERVER_ERROR: 500,
+
+  SHORT_ZERO: 0,
+  SHORT_ONE: 1,
+  SHORT_TWO: 2,
+
+  FAMILY_CREATED:
+    "Family created successfully",
+
+  FAMILY_NOT_FOUND:
+    "Family not found",
+
+  MEMBER_CREATED:
+    "Member created successfully",
+
+  PROFILE_UPDATED:
+    "Profile updated successfully",
+
+  PROFILE_DELETED:
+    "Profile deleted successfully",
+
+  RECORD_FOUND:
+    "Record found",
+
+  RECORD_NOT_FOUND:
+    "No records found",
+
+  SERVER_MESSAGE:
+    "Internal Server Error",
+};
+
+/* ───────────────── CREATE FAMILY HEAD ───────────────── */
+
+async function createFamilyHead(
+  body,
+  file
+) {
+
+  const session =
+    await mongoose.startSession();
+
   try {
-    const { headProfile, profiles = [] } = data || {};
 
-    if (!headProfile || !headProfile.name || !headProfile.district || !headProfile.tehsil || !headProfile.village) {
-      return buildResponse(400, "headProfile with name, district, tehsil and village is required", null);
-    }
+    session.startTransaction();
 
-    const familyId = data.familyId || await generateFamilyId(
-      headProfile.district,
-      headProfile.tehsil,
-      headProfile.village
+    logger.info(
+      "Starting createFamilyHead service"
     );
 
-    const existing = await familyRepo.findByFamilyId(familyId);
-    if (existing) {
-      return buildResponse(409, "FamilyId already exists", null);
+    const {
+      firstName,
+      middleName,
+      lastName,
+
+      fatherFirstName,
+      fatherMiddleName,
+      fatherLastName,
+
+      motherFirstName,
+      motherMiddleName,
+      motherLastName,
+
+      gender,
+      dob,
+      mobile,
+      email,
+      occupation,
+      education,
+      maritalStatus,
+      villageId,
+    } = body;
+
+    /*
+     * Validate Required Fields
+     */
+
+    if (!firstName) {
+
+      logger.warn(
+        "Validation failed: firstName is missing"
+      );
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "First name is required"
+      );
     }
 
-    const head = await familyProfileRepo.create({
-      ...headProfile,
-      familyId,
-      relationToHead: "HEAD",
-      gender: headProfile.gender || "MALE",
-      district: headProfile.district,
-      tehsil: headProfile.tehsil,
-      village: headProfile.village,
-    });
+    if (!lastName) {
 
-    const family = await familyRepo.create({
-      familyId,
-      headProfileId: head._id,
-      district: headProfile.district,
-      tehsil: headProfile.tehsil,
-      village: headProfile.village,
-    });
+      logger.warn(
+        "Validation failed: lastName is missing"
+      );
 
-    const validProfiles = profiles
-      .filter((profile) => profile && profile.name && profile.relationToHead)
-      .map((profile) => ({
-        ...profile,
-        familyId,
-      }));
-
-    if (validProfiles.length) {
-      await familyProfileRepo.insertMany(validProfiles);
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Last name is required"
+      );
     }
 
-    const familyDetails = await getFamilyDetails(family.familyId);
-    return buildResponse(201, "Family created successfully", familyDetails.responseBody);
-  } catch (err) {
-    return buildResponse(500, err.message, null);
-  }
-}
+    if (!fatherFirstName) {
 
-async function addProfile(data) {
-  try {
-    if (!data.familyId || !data.name || !data.relationToHead) {
-      return buildResponse(400, "familyId, name and relationToHead are required", null);
+      logger.warn(
+        "Validation failed: fatherFirstName is missing"
+      );
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Father first name is required"
+      );
     }
 
-    const family = await familyRepo.findByFamilyId(data.familyId);
-    if (!family) return buildResponse(404, "Family not found", null);
+    if (!motherFirstName) {
 
-    const profile = await familyProfileRepo.create(data);
-    return buildResponse(201, "Family profile added successfully", buildProfileResponse(profile));
-  } catch (err) {
-    return buildResponse(500, err.message, null);
-  }
-}
+      logger.warn(
+        "Validation failed: motherFirstName is missing"
+      );
 
-async function updateProfile(id, data) {
-  try {
-    const profile = await familyProfileRepo.update(id, data);
-    if (!profile) return buildResponse(404, "Family profile not found", null);
-    return buildResponse(200, "Family profile updated successfully", buildProfileResponse(profile));
-  } catch (err) {
-    return buildResponse(500, err.message, null);
-  }
-}
-
-async function getFamilyDetails(familyId) {
-  try {
-    const family = await familyRepo.findByFamilyId(familyId);
-    if (!family) return buildResponse(404, "Family not found", null);
-
-    const profiles = await familyProfileRepo.findByFamilyId(familyId);
-    return buildResponse(200, "Family details fetched successfully", {
-      family: buildFamilyResponse(family),
-      profiles: profiles.map(buildProfileResponse),
-    });
-  } catch (err) {
-    return buildResponse(500, err.message, null);
-  }
-}
-
-async function getAllFamilies({ pageIndex = 0, pageSize = 10, searchText, district, tehsil, village }) {
-  try {
-    const query = { status: { $ne: 0 } };
-
-    if (district) query.district = { $regex: district.trim(), $options: "i" };
-    if (tehsil) query.tehsil = { $regex: tehsil.trim(), $options: "i" };
-    if (village) query.village = { $regex: village.trim(), $options: "i" };
-
-    if (searchText && searchText.trim()) {
-      query.$or = [
-        { familyId: { $regex: searchText.trim(), $options: "i" } },
-        { district: { $regex: searchText.trim(), $options: "i" } },
-        { tehsil: { $regex: searchText.trim(), $options: "i" } },
-        { village: { $regex: searchText.trim(), $options: "i" } },
-      ];
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Mother first name is required"
+      );
     }
 
-    const skip = pageIndex * pageSize;
-    const [families, totalRecords] = await Promise.all([
-      familyRepo.findAll(query).sort({ createdAt: -1 }).skip(skip).limit(pageSize).populate("headProfileId"),
-      familyRepo.countDocuments(query),
-    ]);
+    if (!gender) {
 
-    if (!families.length) return buildResponse(404, "No records found", null);
+      logger.warn(
+        "Validation failed: gender is missing"
+      );
 
-    return buildResponse(200, "Families fetched successfully", {
-      content: families.map(buildFamilyListResponse),
-      pageIndex,
-      pageSize,
-      totalRecords,
-      totalPages: Math.ceil(totalRecords / pageSize),
-      hasNext: pageIndex + 1 < Math.ceil(totalRecords / pageSize),
-      hasPrevious: pageIndex > 0,
-    });
-  } catch (err) {
-    return buildResponse(500, err.message, null);
-  }
-}
-
-async function searchFamiliesForRegistration({ district, tehsil, village, searchText }) {
-  try {
-    const query = { status: 1 };
-    if (district) query.district = district;
-    if (tehsil) query.tehsil = tehsil;
-    if (village) query.village = village;
-    if (searchText && searchText.trim()) {
-      query.$or = [
-        { familyId: { $regex: searchText.trim(), $options: "i" } },
-        { district: { $regex: searchText.trim(), $options: "i" } },
-        { tehsil: { $regex: searchText.trim(), $options: "i" } },
-        { village: { $regex: searchText.trim(), $options: "i" } },
-      ];
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Gender is required"
+      );
     }
 
-    const families = await familyRepo.findAll(query)
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .populate("headProfileId");
+    if (!dob) {
 
-    return buildResponse(200, "Families fetched successfully", families.map(buildFamilyOptionResponse));
+      logger.warn(
+        "Validation failed: dob is missing"
+      );
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Date of birth is required"
+      );
+    }
+
+    if (!villageId) {
+
+      logger.warn(
+        "Validation failed: villageId is missing"
+      );
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Village Id is required"
+      );
+    }
+
+    /*
+     * Validate Village
+     */
+
+    logger.info(
+      "Fetching village details for villageId: %s",
+      villageId
+    );
+
+    const village =
+      await Village.findById(
+        villageId
+      );
+
+    if (!village) {
+
+      logger.warn(
+        "Village not found for villageId: %s",
+        villageId
+      );
+
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        "Village not found"
+      );
+    }
+
+    logger.info(
+      "Village validated successfully"
+    );
+
+    /*
+     * Check Duplicate Family
+     */
+
+logger.info(
+  "Checking duplicate family",
+  {
+    firstName,
+    lastName,
+    fatherFirstName,
+    motherFirstName,
+    dob,
+    villageId,
+  }
+);
+
+const duplicate =
+  await findDuplicateFamily({
+    firstName,
+    lastName,
+    fatherFirstName,
+    motherFirstName,
+    dob,
+    villageId,
+  });
+    if (duplicate) {
+
+      logger.warn(
+        "Duplicate family found with familyId: %s",
+        duplicate.familyId
+      );
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        `Family already exists with Family ID: ${duplicate.familyId}`
+      );
+    }
+
+    logger.info(
+      "No duplicate family found"
+    );
+
+    /*
+     * Upload Profile Image
+     */
+
+    let profileImage =
+      null;
+
+    if (file) {
+
+      logger.info(
+        "Uploading profile image"
+      );
+
+      profileImage =
+        await uploadFile(
+          file,
+          "family-profile"
+        );
+
+      logger.info(
+        "Profile image uploaded successfully"
+      );
+    }
+
+    /*
+     * Generate Family ID
+     */
+
+    logger.info(
+      "Generating familyId"
+    );
+
+    const familyId =
+      await generateFamilyId(
+        village.districtId,
+        village.tehsilId,
+        village._id
+      );
+
+    logger.info(
+      "Generated familyId: %s",
+      familyId
+    );
+
+    /*
+     * Create HEAD Person
+     */
+
+    logger.info(
+      "Creating HEAD profile"
+    );
+
+    const headPerson =
+      await createPerson(
+        {
+          familyId,
+
+          relationType:
+            "HEAD",
+
+          firstName,
+          middleName,
+          lastName,
+
+          fatherFirstName,
+          fatherMiddleName,
+          fatherLastName,
+
+          motherFirstName,
+          motherMiddleName,
+          motherLastName,
+
+          gender,
+
+          dob,
+
+          mobile,
+
+          email,
+
+          occupation,
+
+          education,
+
+          maritalStatus,
+
+          villageId:
+            village._id,
+
+          profileImage,
+        },
+        session
+      );
+
+    logger.info(
+      "HEAD profile created successfully with personId: %s",
+      headPerson._id
+    );
+
+    /*
+     * Create Family
+     */
+
+    logger.info(
+      "Creating family record"
+    );
+
+    const family =
+      await createFamily(
+        {
+          familyId,
+
+          familyTitle:
+            `${firstName} ${lastName} Family`,
+
+          familyHeadId:
+            headPerson._id,
+
+          districtId:
+            village.districtId,
+
+          tehsilId:
+            village.tehsilId,
+          villageId:
+            village._id,
+
+          totalMembers: 1,
+        },
+        session
+      );
+
+    logger.info(
+      "Family created successfully with familyRefId: %s",
+      family._id
+    );
+
+    /*
+     * Update Head References
+     */
+
+    logger.info(
+      "Updating family references in HEAD profile"
+    );
+
+    await updatePerson(
+      headPerson._id,
+      {
+        familyRefId:
+          family._id,
+
+        familyHeadId:
+          headPerson._id,
+      },
+      session
+    );
+
+    logger.info(
+      "HEAD profile references updated successfully"
+    );
+
+    /*
+     * Commit Transaction
+     */
+
+    await session.commitTransaction();
+
+    logger.info(
+      "createFamilyHead transaction committed successfully"
+    );
+
+    return buildResponse(
+      DataConstant.OK,
+      DataConstant.FAMILY_CREATED,
+      family
+    );
+
   } catch (err) {
-    return buildResponse(500, err.message, null);
+
+    await session.abortTransaction();
+
+    logger.error(
+      "Error in createFamilyHead: %s",
+      err.stack || err.message
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      DataConstant.SERVER_MESSAGE
+    );
+
+  } finally {
+
+    session.endSession();
+
+    logger.info(
+      "createFamilyHead session ended"
+    );
   }
 }
 
-async function blockUnblockFamily(familyId, status) {
+/* ───────────────── CHECK DUPLICATE FAMILY ───────────────── */
+
+async function checkDuplicateFamily(
+  body
+) {
+
   try {
-    const family = await familyRepo.updateByFamilyId(familyId, { status });
-    if (!family) return buildResponse(404, "Family not found", null);
 
-    const messages = {
-      0: "Family deleted successfully",
-      1: "Family activated successfully",
-      2: "Family deactivated successfully",
-    };
 
-    return buildResponse(200, messages[status] || "Family status updated", buildFamilyResponse(family));
+
+    const {
+      firstName,
+      lastName,
+      fatherFirstName,
+      motherFirstName,
+      dob,
+      villageId,
+    } = body;
+
+    /*
+     * Validation
+     */
+
+    if (!firstName) {
+
+      logger.warn(
+        "First name missing"
+      );
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "First name is required"
+      );
+    }
+
+    if (!lastName) {
+
+      logger.warn(
+        "Last name missing"
+      );
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Last name is required"
+      );
+    }
+
+    if (!villageId) {
+
+      logger.warn(
+        "Village Id missing"
+      );
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Village Id is required"
+      );
+    }
+
+    /*
+     * Validate Village
+     */
+
+    const village =
+      await Village.findById(
+        villageId
+      );
+
+    if (!village) {
+
+      logger.warn(
+        "Village not found"
+      );
+
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        "Village not found"
+      );
+    }
+
+    /*
+     * Find Duplicate
+     */
+
+    logger.info(
+  "Duplicate search payload: %j",
+  {
+    firstName,
+    lastName,
+    fatherFirstName,
+    motherFirstName,
+    dob,
+    villageId,
+  }
+);
+    const duplicate =
+      await findDuplicateFamily({
+
+        firstName,
+
+        lastName,
+
+        fatherFirstName,
+
+        motherFirstName,
+
+        dob,
+
+        villageId:
+          village._id,
+      });
+
+    /*
+     * No Duplicate
+     */
+
+    logger.info(
+      "Duplicate query result: %j",
+      duplicate
+    );
+    if (!duplicate) {
+
+      logger.info(
+        "No duplicate family found"
+      );
+
+      return buildResponse(
+        DataConstant.OK,
+        "No duplicate family found",
+        {
+          isDuplicate: false,
+        }
+      );
+    }
+
+    /*
+     * Duplicate Found
+     */
+
+    logger.warn(
+      "Duplicate family exists"
+    );
+
+    return buildResponse(
+      DataConstant.OK,
+      "Duplicate family found",
+      {
+        isDuplicate: true,
+
+        familyId:
+          duplicate.familyId,
+
+        existingHead:
+          duplicate,
+      }
+    );
+
   } catch (err) {
-    return buildResponse(500, err.message, null);
+
+    logger.error(
+      "Error in checkDuplicateFamily: %s",
+      err.stack || err.message
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      DataConstant.SERVER_MESSAGE
+    );
   }
 }
 
-async function generateFamilyId(district, tehsil, village) {
-  const prefix = `KFP-${code(district)}-${code(tehsil)}-${code(village)}`;
-  const count = await familyRepo.countDocuments({ familyId: { $regex: `^${prefix}` } });
-  return `${prefix}-${String(count + 1).padStart(4, "0")}`;
-}
 
-function code(value = "") {
-  return value.replace(/[^a-zA-Z]/g, "").substring(0, 3).toUpperCase() || "XXX";
-}
+/* ───────────────── GET FAMILY PROFILE ───────────────── */
 
-function buildFamilyResponse(family) {
-  if (!family) return null;
-  return {
-    id: family._id,
-    familyId: family.familyId,
-    headProfileId: family.headProfileId?._id || family.headProfileId,
-    district: family.district,
-    tehsil: family.tehsil,
-    village: family.village,
-    status: family.status,
-    createdAt: family.createdAt,
-    updatedAt: family.updatedAt,
-  };
-}
+async function getFamilyProfileById(
+  familyId
+) {
 
-function buildFamilyListResponse(family) {
-  const head = family.headProfileId;
-  return {
-    ...buildFamilyResponse(family),
-    headName: head?.name || "",
-    headFatherName: head?.fatherName || "",
-    displayName: `${head?.name || "Head"} - ${head?.fatherName || "Father"} - ${family.village}`,
-  };
-}
+  try {
 
-function buildFamilyOptionResponse(family) {
-  return {
-    familyId: family.familyId,
-    headName: family.headProfileId?.name || "",
-    headFatherName: family.headProfileId?.fatherName || "",
-    district: family.district,
-    tehsil: family.tehsil,
-    village: family.village,
-    displayName: `${family.headProfileId?.name || "Head"} - ${family.headProfileId?.fatherName || "Father"} - ${family.village}`,
-  };
-}
+    logger.info(
+      "Fetching family profile"
+    );
 
-function buildProfileResponse(profile) {
-  if (!profile) return null;
-  return {
-    id: profile._id,
-    familyId: profile.familyId,
-    relationToHead: profile.relationToHead,
-    name: profile.name,
-    dob: profile.dob,
-    gender: profile.gender,
-    isMarried: profile.isMarried,
-    profileImage: profile.profileImage,
-    occupation: profile.occupation,
-    education: profile.education,
-    mobileNumber: profile.mobileNumber,
-    email: profile.email,
-    fatherName: profile.fatherName,
-    motherName: profile.motherName,
-    grandFatherName: profile.grandFatherName,
-    district: profile.district,
-    tehsil: profile.tehsil,
-    village: profile.village,
-    parentProfileId: profile.parentProfileId,
-    spouseDetails: profile.spouseDetails,
-    spouseFamilyId: profile.spouseFamilyId,
-    linkedMemberId: profile.linkedMemberId,
-    status: profile.status,
-  };
+    if (!familyId) {
+
+      logger.warn(
+        "familyId missing"
+      );
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "familyId is required"
+      );
+    }
+
+    const family =
+      await findFamilyByFamilyId(
+        familyId
+      );
+
+    if (!family) {
+
+      logger.warn(
+        "Family not found"
+      );
+
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        DataConstant.FAMILY_NOT_FOUND
+      );
+    }
+
+    const members =
+      await getPersonsByFamilyId(
+        familyId
+      );
+
+    logger.info(
+      "Family profile fetched successfully"
+    );
+
+    return buildResponse(
+      DataConstant.OK,
+      DataConstant.RECORD_FOUND,
+      {
+        family,
+        members,
+      }
+    );
+
+  } catch (err) {
+
+    logger.error(
+      "Error in getFamilyProfileById: %s",
+      err.stack || err.message
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      DataConstant.SERVER_MESSAGE
+    );
+  }
 }
 
 module.exports = {
-  createFamily,
-  addProfile,
-  updateProfile,
-  getFamilyDetails,
-  getAllFamilies,
-  searchFamiliesForRegistration,
-  blockUnblockFamily,
-  buildProfileResponse,
+  createFamilyHead,
+  checkDuplicateFamily,
+  getFamilyProfileById,
 };

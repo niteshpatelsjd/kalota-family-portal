@@ -10,12 +10,13 @@ const swaggerOptions = {
     },
     servers: [
       
+
       {
-        url: "https://kalota-family-portal-backend.onrender.com",
+        url: "http://localhost:7000",
         description: "Local server",
       },
       {
-        url: "http://localhost:7000",
+        url: "https://kalota-family-portal-backend.onrender.com",
         description: "Local server",
       },
     ],
@@ -35,14 +36,14 @@ const swaggerOptions = {
     ],
   },
   apis: [
-    "./src/routes/AdminUserRoute.js",
+    "./src/routes/**.js",
     "./src/routes/RoleRoute.js",
     "./src/routes/ModuleRoute.js",
     "./src/routes/LocationRoute.js",
     "./src/routes/FamilyRoute.js",
     "./src/routes/MemberRoute.js",
     "./src/routes/MemberAdminRoute.js",
-    "./src/controllers/AdminUserController.js",
+    "./src/controllers/**.js",
     "./src/controllers/ModuleController.js",
     "./src/controllers/RoleController.js",
   ],
