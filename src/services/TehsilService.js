@@ -193,7 +193,10 @@ async function getAllTehsil(
   try {
     let query = {
       status: {
-        $in: [DataConstant.SHORT_ONE, DataConstant.SHORT_TWO],
+        $in: [
+          DataConstant.SHORT_ONE,
+          DataConstant.SHORT_TWO,
+        ],
       },
     };
 
@@ -201,15 +204,25 @@ async function getAllTehsil(
       query.districtId = districtId;
     }
 
-    if (status !== undefined && status !== null && status !== "") {
-      const parsedStatus = parseInt(status, 10);
+    if (
+      status !== undefined &&
+      status !== null &&
+      status !== ""
+    ) {
+      const parsedStatus = parseInt(
+        status,
+        10
+      );
 
       if (!isNaN(parsedStatus)) {
         query.status = parsedStatus;
       }
     }
 
-    if (searchText && searchText.trim() !== "") {
+    if (
+      searchText &&
+      searchText.trim() !== ""
+    ) {
       query.name = {
         $regex: searchText.trim(),
         $options: "i",
@@ -221,14 +234,40 @@ async function getAllTehsil(
 
     const skip = pageIndex * pageSize;
 
-    const [data, total] = await Promise.all([
-      Tehsil.find(query)
-        .populate("districtId")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(pageSize),
+    // MAIN DATA
+    const [data, total] =
+      await Promise.all([
+        Tehsil.find(query)
+          .populate("districtId")
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(pageSize),
 
-      Tehsil.countDocuments(query),
+        Tehsil.countDocuments(query),
+      ]);
+
+    // COUNTS
+    const [
+      totalTehsils,
+      totalActive,
+      totalInactive,
+    ] = await Promise.all([
+      Tehsil.countDocuments({
+        status: {
+          $in: [
+            DataConstant.SHORT_ONE,
+            DataConstant.SHORT_TWO,
+          ],
+        },
+      }),
+
+      Tehsil.countDocuments({
+        status: DataConstant.SHORT_ONE,
+      }),
+
+      Tehsil.countDocuments({
+        status: DataConstant.SHORT_TWO,
+      }),
     ]);
 
     if (!data.length) {
@@ -238,17 +277,32 @@ async function getAllTehsil(
       );
     }
 
-    return buildResponse(DataConstant.OK, DataConstant.RECORD_FOUND, {
-      content: data,
-      pageIndex,
-      pageSize,
-      total,
-      totalPages: Math.ceil(total / pageSize),
-      hasNext: skip + data.length < total,
-      hasPrevious: pageIndex > 0,
-    });
+    return buildResponse(
+      DataConstant.OK,
+      DataConstant.RECORD_FOUND,
+      {
+        content: data,
+        pageIndex,
+        pageSize,
+        total,
+        totalPages: Math.ceil(
+          total / pageSize
+        ),
+        hasNext:
+          skip + data.length < total,
+        hasPrevious: pageIndex > 0,
+
+        // NEW PARAMETERS
+        totalTehsils,
+        totalActive,
+        totalInactive,
+      }
+    );
   } catch (err) {
-    logger.error("Error in getAllTehsil: %s", err.stack || err.message);
+    logger.error(
+      "Error in getAllTehsil: %s",
+      err.stack || err.message
+    );
 
     return buildResponse(
       DataConstant.SERVER_ERROR,
