@@ -1293,9 +1293,111 @@ async function deleteProfileService(
   }
 }
 
+/* ───────────────── GET ALL PERSONS BY FAMILY ID ───────────────── */
+
+async function getPersonsByFamilyIdService(
+  familyId
+) {
+
+  try {
+
+    logger.info(
+      "Starting getPersonsByFamilyIdService"
+    );
+
+    /*
+     * Validation
+     */
+
+    if (!familyId) {
+
+      logger.warn(
+        "familyId missing"
+      );
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "familyId is required"
+      );
+    }
+
+    /*
+     * Fetch Persons
+     */
+
+    logger.info(
+      "Fetching persons by familyId"
+    );
+
+    const persons =
+      await getPersonsByFamilyId(
+        familyId
+      );
+
+    if (
+      !persons ||
+      persons.length === 0
+    ) {
+
+      logger.warn(
+        "No profiles found"
+      );
+
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        DataConstant.RECORD_NOT_FOUND
+      );
+    }
+
+    /*
+     * Required Response
+     */
+
+const response =
+  persons.map((person) => ({
+
+    id: person._id,
+
+    name: `${person.firstName || ""} ${person.lastName || ""}`
+      .trim(),
+
+    profileImage:
+      person.profileImage &&
+      person.profileImage.trim() !== ""
+        ? person.profileImage
+        : null,
+
+  }));
+
+    logger.info(
+      "Profiles fetched successfully"
+    );
+
+    return buildResponse(
+      DataConstant.OK,
+      DataConstant.RECORD_FOUND,
+      response
+    );
+
+  } catch (error) {
+
+    logger.error(
+      "Error in getPersonsByFamilyIdService: %s",
+      error.stack ||
+        error.message
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      DataConstant.SERVER_MESSAGE
+    );
+  }
+}
+
 module.exports = {
   createMemberProfileService,
   updateProfileService,
   getProfileByIdService,
   deleteProfileService,
+  getPersonsByFamilyIdService,
 };

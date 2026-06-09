@@ -40,8 +40,6 @@ async function createMemberProfile(
 
 /* ───────────────── UPDATE PROFILE ───────────────── */
 
-/* ───────────────── UPDATE PROFILE ───────────────── */
-
 async function updateProfile(
   req,
   res
@@ -150,9 +148,46 @@ async function getProfileById(
   }
 }
 
+
+
+async function getPersonsByFamily(
+  req,
+  res
+) {
+
+  try {
+
+    const { familyId } =
+      req.query;
+
+    const response =
+      await PersonService.getPersonsByFamilyIdService(
+        familyId
+      );
+
+    return res
+      .status(
+        response.responseCode
+      )
+      .json(response);
+
+  } catch (error) {
+
+    return res
+      .status(500)
+      .json({
+        responseCode: 500,
+        message:
+          "Internal Server Error",
+      });
+  }
+}
+
+
 module.exports = {
   createMemberProfile,
   updateProfile,
   deleteProfile,
   getProfileById,
+  getPersonsByFamily,
 };

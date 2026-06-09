@@ -4684,3 +4684,12 @@
 {"level":"info","message":"Family profile fetched successfully","timestamp":"2026-06-09 14:29:31"}
 {"level":"info","message":"Fetching family profile","timestamp":"2026-06-09 14:30:07"}
 {"level":"info","message":"Family profile fetched successfully","timestamp":"2026-06-09 14:30:07"}
+{"level":"info","message":"FamilyController => getAllFamilies","timestamp":"2026-06-09 17:07:40"}
+{"level":"info","message":"FamilyController => getAllFamilies","timestamp":"2026-06-09 17:10:41"}
+{"level":"info","message":"Starting createMemberProfileService","timestamp":"2026-06-09 22:16:44"}
+{"level":"warn","message":"Invalid relationType","timestamp":"2026-06-09 22:16:44"}
+{"level":"info","message":"createMemberProfileService session ended","timestamp":"2026-06-09 22:16:44"}
+{"level":"info","message":"Starting getPersonsByFamilyIdService","timestamp":"2026-06-09 23:37:59"}
+{"level":"info","message":"Starting getPersonsByFamilyIdService","timestamp":"2026-06-09 23:40:19"}
+{"level":"info","message":"Fetching persons by familyId","timestamp":"2026-06-09 23:40:19"}
+{"level":"info","message":"Profiles fetched successfully","timestamp":"2026-06-09 23:40:20"}

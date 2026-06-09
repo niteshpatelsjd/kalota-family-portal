@@ -362,5 +362,27 @@ router.get(
   personController.getProfileById
 );
 
+
+/**
+ * @openapi
+ * /admin/person/getPersonsByFamily:
+ *   get:
+ *     tags: [Person Controller]
+ *     summary: Get all persons by familyId
+ *     parameters:
+ *       - in: query
+ *         name: familyId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Persons fetched successfully
+ */
+router.get(
+  "/getPersonsByFamily",
+  personController.getPersonsByFamily
+);
+
 module.exports =
   router;
