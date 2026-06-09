@@ -231,19 +231,29 @@ async function getAllVillage(
   try {
     let query = {
       status: {
-        $in: [DataConstant.SHORT_ONE, DataConstant.SHORT_TWO],
+        $in: [
+          DataConstant.SHORT_ONE,
+          DataConstant.SHORT_TWO,
+        ],
       },
     };
 
+    // FILTER BY DISTRICT
     if (districtId) {
       query.districtId = districtId;
     }
 
+    // FILTER BY TEHSIL
     if (tehsilId) {
       query.tehsilId = tehsilId;
     }
 
-    if (status !== undefined && status !== null && status !== "") {
+    // FILTER BY STATUS
+    if (
+      status !== undefined &&
+      status !== null &&
+      status !== ""
+    ) {
       const parsedStatus = parseInt(status, 10);
 
       if (!isNaN(parsedStatus)) {
@@ -251,7 +261,11 @@ async function getAllVillage(
       }
     }
 
-    if (searchText && searchText.trim() !== "") {
+    // SEARCH
+    if (
+      searchText &&
+      searchText.trim() !== ""
+    ) {
       query.name = {
         $regex: searchText.trim(),
         $options: "i",
@@ -263,6 +277,7 @@ async function getAllVillage(
 
     const skip = pageIndex * pageSize;
 
+    // MAIN DATA
     const [data, total] = await Promise.all([
       Village.find(query)
         .populate("districtId")
@@ -274,24 +289,87 @@ async function getAllVillage(
       Village.countDocuments(query),
     ]);
 
-    if (!data.length) {
-      return buildResponse(
-        DataConstant.NOT_FOUND,
-        DataConstant.RECORD_NOT_FOUND
-      );
-    }
+    // TOTAL COUNTS
+    const [
+      totalVillages,
+      totalActive,
+      totalInactive,
+    ] = await Promise.all([
+      Village.countDocuments(),
 
-    return buildResponse(DataConstant.OK, DataConstant.RECORD_FOUND, {
-      content: data,
-      pageIndex,
-      pageSize,
-      total,
-      totalPages: Math.ceil(total / pageSize),
-      hasNext: skip + data.length < total,
-      hasPrevious: pageIndex > 0,
-    });
+      Village.countDocuments({
+        status: DataConstant.SHORT_ONE,
+      }),
+
+      Village.countDocuments({
+        status: DataConstant.SHORT_TWO,
+      }),
+    ]);
+
+    // FORMAT RESPONSE
+    const formattedData = data.map((item) => ({
+      id: item._id,
+
+      name: item.name,
+
+      latitude: item.latitude,
+
+      longitude: item.longitude,
+
+      status: item.status,
+
+      district: item.districtId
+        ? {
+            id: item.districtId._id,
+            name: item.districtId.name,
+          }
+        : null,
+
+      tehsil: item.tehsilId
+        ? {
+            id: item.tehsilId._id,
+            name: item.tehsilId.name,
+          }
+        : null,
+
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    }));
+
+    return buildResponse(
+      DataConstant.OK,
+      DataConstant.RECORD_FOUND,
+      {
+        content: formattedData,
+
+        pageIndex,
+
+        pageSize,
+
+        total,
+
+        totalPages: Math.ceil(
+          total / pageSize
+        ),
+
+        hasNext:
+          skip + data.length < total,
+
+        hasPrevious: pageIndex > 0,
+
+        // EXTRA COUNTS
+        totalVillages,
+
+        totalActive,
+
+        totalInactive,
+      }
+    );
   } catch (err) {
-    logger.error("Error in getAllVillage: %s", err.stack || err.message);
+    logger.error(
+      "Error in getAllVillage: %s",
+      err.stack || err.message
+    );
 
     return buildResponse(
       DataConstant.SERVER_ERROR,
