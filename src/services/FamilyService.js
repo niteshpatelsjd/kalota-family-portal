@@ -642,21 +642,14 @@ async function checkDuplicateFamily(
 
 /* ───────────────── GET FAMILY PROFILE ───────────────── */
 
-async function getFamilyProfileById(
-  familyId
-) {
-
+async function getFamilyProfileById(familyId) {
   try {
 
-    logger.info(
-      "Fetching family profile"
-    );
+    logger.info("Fetching family profile");
 
     if (!familyId) {
 
-      logger.warn(
-        "familyId missing"
-      );
+      logger.warn("familyId missing");
 
       return buildResponse(
         DataConstant.BAD_REQUEST,
@@ -665,15 +658,11 @@ async function getFamilyProfileById(
     }
 
     const family =
-      await findFamilyByFamilyId(
-        familyId
-      );
+      await findFamilyByFamilyId(familyId);
 
     if (!family) {
 
-      logger.warn(
-        "Family not found"
-      );
+      logger.warn("Family not found");
 
       return buildResponse(
         DataConstant.NOT_FOUND,
@@ -682,9 +671,79 @@ async function getFamilyProfileById(
     }
 
     const members =
-      await getPersonsByFamilyId(
-        familyId
-      );
+      await getPersonsByFamilyId(familyId);
+
+    // =========================
+    // Add custom village names
+    // =========================
+
+    const updatedMembers = await Promise.all(
+
+      members.map(async (memberDoc) => {
+
+        // IMPORTANT
+        // Convert mongoose document to plain object
+        const member = memberDoc.toObject();
+
+        const relationType =
+          member.relationType?.toUpperCase();
+
+        // Default values
+        member.nativeVillageName = "";
+        member.marriedVillageName = "";
+
+        // =====================================
+        // MOTHER & SPOUSE -> nativeVillageName
+        // =====================================
+
+        if (
+          relationType === "MOTHER" ||
+          relationType === "SPOUSE"
+        ) {
+
+          if (member.parentVillageId) {
+
+            const villageData =
+              await Village.findById(
+                member.parentVillageId
+              );
+
+            console.log("Village Data:", villageData);
+
+            member.nativeVillageName =
+              villageData?.name || "";
+          }
+        }
+
+        // =====================================
+        // SISTER / DAUGHTER / GRANDDAUGHTER
+        // -> marriedVillageName
+        // =====================================
+
+        if (
+          relationType === "SISTER" ||
+          relationType === "DAUGHTER" ||
+          relationType === "GRANDDAUGHTER"
+        ) {
+
+          if (
+            member.maritalStatus === "MARRIED" &&
+            member.parentVillageId
+          ) {
+
+            const villageData =
+              await Village.findById(
+                member.parentVillageId
+              );
+
+            member.marriedVillageName =
+              villageData?.name || "";
+          }
+        }
+
+        return member;
+      })
+    );
 
     logger.info(
       "Family profile fetched successfully"
@@ -695,7 +754,7 @@ async function getFamilyProfileById(
       DataConstant.RECORD_FOUND,
       {
         family,
-        members,
+        members: updatedMembers,
       }
     );
 
