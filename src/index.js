@@ -4,6 +4,7 @@ const morgan = require("morgan");
 const cors = require("cors");
 const path = require("path");
 const swaggerUi = require("swagger-ui-express");
+const swaggerSpec = require("./config/SwaggerConfig");
 const connectDB = require("./config/DBConfig");
 const adminUserRoutes = require("./routes/AdminUserRoute");
 const moduleRoutes = require("./routes/ModuleRoute");
@@ -16,7 +17,7 @@ const districtRoutes = require("./routes/DistrictRoute");
 const tehsilRoutes = require("./routes/TehsilRoute");
 const villageRoutes = require("./routes/VillageRoute");
 const personRoutes = require("./routes/PersonRoute");
-const swaggerSpec = require("./config/SwaggerConfig");
+const dharamshalaRoutes = require("./routes/DharamshalaRoute");
 
 const app = express();
 app.use(cors());
@@ -43,6 +44,7 @@ app.use("/admin/district", districtRoutes);
 app.use("/admin/tehsil", tehsilRoutes);
 app.use("/admin/village", villageRoutes);
 app.use("/admin/person", personRoutes);
+app.use("/admin/dharamshala", dharamshalaRoutes);
 
 app.get("/health", (_, res) => res.json({ status: "up" }));
 

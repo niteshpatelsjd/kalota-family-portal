@@ -1,0 +1,1075 @@
+const Dharamshala =
+  require("../models/Dharamshala");
+
+const DharamshalaCommittee = require(
+  "../models/DharamshalaCommittee"
+);
+
+const dharamshalaRepo =
+  require("../repositories/DharamshalaRepository");
+
+const logger =
+  require("../utils/logger");
+
+const fileUtil =
+  require("../utils/FileUtil");
+
+const buildResponse =
+  require("../utils/response");
+
+const {
+  buildDharamshalaResponse,
+} = require(
+  "../utils/ResponseBuilder"
+);
+
+const DataConstant = {
+  OK: 200,
+  BAD_REQUEST: 400,
+  NOT_FOUND: 404,
+  SERVER_ERROR: 500,
+
+  SHORT_ZERO: 0,
+  SHORT_ONE: 1,
+  SHORT_TWO: 2,
+
+  RECORD_FOUND: "Record found",
+  RECORD_NOT_FOUND:
+    "No records found",
+
+  INVALID_REQUEST:
+    "Invalid request",
+
+  DHARAMSHALA_CREATED:
+    "Dharamshala created successfully",
+
+  DHARAMSHALA_UPDATED:
+    "Dharamshala updated successfully",
+
+  DHARAMSHALA_DELETED:
+    "Dharamshala deleted successfully",
+
+  DHARAMSHALA_ACTIVE:
+    "Dharamshala activated successfully",
+
+  DHARAMSHALA_INACTIVE:
+    "Dharamshala inactivated successfully",
+
+  DHARAMSHALA_NOT_FOUND:
+    "Dharamshala not found",
+};
+
+/* ─────────────────────────────────────
+   CREATE / UPDATE DHARAMSHALA
+───────────────────────────────────── */
+
+async function addDharamshala(data) {
+  try {
+    if (!data) {
+      logger.error(
+        "addDharamshala: no data provided"
+      );
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        DataConstant.INVALID_REQUEST,
+        null
+      );
+    }
+
+    logger.info(
+      `addDharamshala called id=${
+        data.id || "NEW"
+      }`
+    );
+
+    let profileImage = null;
+
+    let bannerImage = null;
+
+    /* ─────────────────────────────
+       PROFILE IMAGE
+    ───────────────────────────── */
+
+    if (data.profileImageFile) {
+      try {
+        profileImage =
+          await fileUtil.uploadFile(
+            data.profileImageFile,
+            "dharamshala"
+          );
+
+        logger.info(
+          `Profile image uploaded ${profileImage}`
+        );
+      } catch (err) {
+        logger.error(
+          "Failed to upload profile image",
+          err
+        );
+      }
+    }
+
+    /* ─────────────────────────────
+       BANNER IMAGE
+    ───────────────────────────── */
+
+    if (data.bannerImageFile) {
+      try {
+        bannerImage =
+          await fileUtil.uploadFile(
+            data.bannerImageFile,
+            "dharamshala"
+          );
+
+        logger.info(
+          `Banner image uploaded ${bannerImage}`
+        );
+      } catch (err) {
+        logger.error(
+          "Failed to upload banner image",
+          err
+        );
+      }
+    }
+
+    /* ─────────────────────────────
+       VALIDATION
+    ───────────────────────────── */
+
+    if (
+      !data.name ||
+      data.name.trim() === ""
+    ) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Dharamshala name is required",
+        null
+      );
+    }
+
+    const safeData = {
+      ...data,
+
+      profileImage:
+        profileImage ||
+        data.profileImage,
+
+      bannerImage:
+        bannerImage ||
+        data.bannerImage,
+
+      updatedAt: new Date(),
+    };
+
+    let dharamshala;
+
+    /* ─────────────────────────────
+       CREATE
+    ───────────────────────────── */
+
+    if (
+      !data.id ||
+      data.id.trim() === ""
+    ) {
+      dharamshala =
+        await dharamshalaRepo.createDharamshala(
+          safeData
+        );
+
+      logger.info(
+        `Dharamshala created ${dharamshala._id}`
+      );
+
+      return buildResponse(
+        DataConstant.OK,
+        DataConstant.DHARAMSHALA_CREATED,
+        await buildDharamshalaResponse(
+          dharamshala
+        )
+      );
+    }
+
+    /* ─────────────────────────────
+       UPDATE
+    ───────────────────────────── */
+
+    dharamshala =
+      await dharamshalaRepo.updateDharamshala(
+        data.id,
+        safeData
+      );
+
+    if (!dharamshala) {
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        DataConstant.DHARAMSHALA_NOT_FOUND,
+        null
+      );
+    }
+
+    logger.info(
+      `Dharamshala updated ${data.id}`
+    );
+
+    return buildResponse(
+      DataConstant.OK,
+      DataConstant.DHARAMSHALA_UPDATED,
+      await buildDharamshalaResponse(
+        dharamshala
+      )
+    );
+  } catch (err) {
+    logger.error(
+      `addDharamshala error ${err.message}`,
+      {
+        stack: err.stack,
+      }
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+}
+
+/* ─────────────────────────────────────
+   GET BY ID
+───────────────────────────────────── */
+
+async function getDharamshalaById(id) {
+  try {
+    logger.info(
+      `getDharamshalaById ${id}`
+    );
+
+    const dharamshala =
+      await dharamshalaRepo.findById(id);
+
+    if (!dharamshala) {
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        DataConstant.DHARAMSHALA_NOT_FOUND,
+        null
+      );
+    }
+
+    return buildResponse(
+      DataConstant.OK,
+      DataConstant.RECORD_FOUND,
+      await buildDharamshalaResponse(
+        dharamshala
+      )
+    );
+  } catch (err) {
+    logger.error(
+      `getDharamshalaById error ${err.message}`
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+}
+
+/* ─────────────────────────────────────
+   GET ALL
+───────────────────────────────────── */
+
+async function getAllDharamshala({
+  pageIndex,
+  pageSize,
+  status,
+  searchText,
+  villageId,
+}) {
+  try {
+    logger.info(
+      "getAllDharamshala called",
+      {
+        pageIndex,
+        pageSize,
+        status,
+        searchText,
+        villageId,
+      }
+    );
+
+    let query = {
+      status: {
+        $in: [
+          DataConstant.SHORT_ONE,
+          DataConstant.SHORT_TWO,
+        ],
+      },
+    };
+
+    /* ─────────────────────────────
+       STATUS FILTER
+    ───────────────────────────── */
+
+    if (
+      status !== undefined &&
+      status !== null &&
+      status !== ""
+    ) {
+      const parsedStatus =
+        parseInt(status);
+
+      if (!isNaN(parsedStatus)) {
+        query.status =
+          parsedStatus;
+      }
+    }
+
+    /* ─────────────────────────────
+       VILLAGE FILTER
+    ───────────────────────────── */
+
+    if (
+      villageId &&
+      villageId.trim() !== ""
+    ) {
+      query.villageId =
+        villageId;
+    }
+
+    /* ─────────────────────────────
+       SEARCH
+    ───────────────────────────── */
+
+    if (
+      searchText &&
+      searchText.trim() !== ""
+    ) {
+      query.$or = [
+        {
+          name: {
+            $regex:
+              searchText.trim(),
+            $options: "i",
+          },
+        },
+      ];
+    }
+
+    const skip =
+      pageIndex * pageSize;
+
+    const dharamshalaList =
+      await dharamshalaRepo.findAll(
+        query,
+        skip,
+        pageSize
+      );
+
+    const totalRecords =
+      await dharamshalaRepo.countDocuments(
+        query
+      );
+
+    const totalActive =
+      await dharamshalaRepo.countDocuments(
+        {
+          status:
+            DataConstant.SHORT_ONE,
+        }
+      );
+
+    const totalInactive =
+      await dharamshalaRepo.countDocuments(
+        {
+          status:
+            DataConstant.SHORT_TWO,
+        }
+      );
+
+    if (
+      !dharamshalaList ||
+      dharamshalaList.length === 0
+    ) {
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        DataConstant.RECORD_NOT_FOUND,
+        null
+      );
+    }
+
+    return buildResponse(
+      DataConstant.OK,
+      "Records fetched successfully",
+      {
+        content:
+          await Promise.all(
+            dharamshalaList.map(
+              buildDharamshalaResponse
+            )
+          ),
+
+        pageIndex,
+
+        pageSize,
+
+        totalRecords,
+
+        totalActive,
+
+        totalInactive,
+
+        totalPages: Math.ceil(
+          totalRecords / pageSize
+        ),
+
+        isLast:
+          pageIndex + 1 >=
+          Math.ceil(
+            totalRecords /
+              pageSize
+          ),
+
+        hasNext:
+          pageIndex + 1 <
+          Math.ceil(
+            totalRecords /
+              pageSize
+          ),
+
+        hasPrevious:
+          pageIndex > 0,
+      }
+    );
+  } catch (err) {
+    logger.error(
+      `getAllDharamshala error ${err.message}`
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+}
+
+/* ─────────────────────────────────────
+   BLOCK / UNBLOCK / DELETE
+───────────────────────────────────── */
+
+async function blockUnblockDharamshala(
+  id,
+  status
+) {
+  try {
+    logger.info(
+      `blockUnblockDharamshala id=${id} status=${status}`
+    );
+
+    const dharamshala =
+      await Dharamshala.findById(id);
+
+    if (!dharamshala) {
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        DataConstant.DHARAMSHALA_NOT_FOUND,
+        null
+      );
+    }
+
+    if (
+      dharamshala.status ===
+      status
+    ) {
+      if (
+        status ===
+        DataConstant.SHORT_ONE
+      ) {
+        return buildResponse(
+          DataConstant.BAD_REQUEST,
+          "Dharamshala already active",
+          null
+        );
+      }
+
+      if (
+        status ===
+        DataConstant.SHORT_TWO
+      ) {
+        return buildResponse(
+          DataConstant.BAD_REQUEST,
+          "Dharamshala already inactive",
+          null
+        );
+      }
+    }
+
+    dharamshala.status = status;
+
+    await dharamshala.save();
+
+    let message =
+      "Invalid request";
+
+    if (
+      status ===
+      DataConstant.SHORT_ZERO
+    ) {
+      message =
+        DataConstant.DHARAMSHALA_DELETED;
+    }
+
+    if (
+      status ===
+      DataConstant.SHORT_ONE
+    ) {
+      message =
+        DataConstant.DHARAMSHALA_ACTIVE;
+    }
+
+    if (
+      status ===
+      DataConstant.SHORT_TWO
+    ) {
+      message =
+        DataConstant.DHARAMSHALA_INACTIVE;
+    }
+
+    return buildResponse(
+      DataConstant.OK,
+      message,
+      await buildDharamshalaResponse(
+        dharamshala
+      )
+    );
+  } catch (err) {
+    logger.error(
+      `blockUnblockDharamshala error ${err.message}`
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+}
+
+/* ─────────────────────────────────────
+   TOTAL COUNT
+───────────────────────────────────── */
+
+async function getTotalDharamshalaCount() {
+  try {
+    const total =
+      await Dharamshala.countDocuments(
+        {
+          status: {
+            $ne:
+              DataConstant.SHORT_ZERO,
+          },
+        }
+      );
+
+    return buildResponse(
+      DataConstant.OK,
+      "Successfully fetched",
+      total
+    );
+  } catch (err) {
+    logger.error(
+      `getTotalDharamshalaCount error ${err.message}`
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+}
+
+
+
+/* ─────────────────────────────────────
+   DHARAMSHALA COMMITTEE APIs
+   ADD INSIDE DharamshalaService.js
+───────────────────────────────────── */
+
+
+
+/* ─────────────────────────────────────
+   ADD / UPDATE COMMITTEE MEMBER
+───────────────────────────────────── */
+
+async function addDharamshalaCommittee(
+  data
+) {
+  try {
+    if (!data) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        DataConstant.INVALID_REQUEST,
+        null
+      );
+    }
+
+    const {
+      id,
+      dharamshalaId,
+      userId,
+      committeeRole,
+      joiningDate,
+      endDate,
+      remarks,
+      appointedBy,
+      removedBy,
+      removedReason,
+      status,
+    } = data;
+
+    /* ─────────────────────────────
+       VALIDATION
+    ───────────────────────────── */
+
+    if (!dharamshalaId) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "dharamshalaId is required",
+        null
+      );
+    }
+
+    if (!userId) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "userId is required",
+        null
+      );
+    }
+
+    if (!committeeRole) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "committeeRole is required",
+        null
+      );
+    }
+
+    if (!joiningDate) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "joiningDate is required",
+        null
+      );
+    }
+
+    const safeData = {
+      dharamshalaId,
+      userId,
+      committeeRole,
+      joiningDate,
+      endDate:
+        endDate || null,
+      remarks,
+      appointedBy,
+      removedBy,
+      removedReason,
+      status:
+        status ??
+        DataConstant.SHORT_ONE,
+    };
+
+    /* ─────────────────────────────
+       CREATE
+    ───────────────────────────── */
+
+    if (!id || id.trim() === "") {
+      const committee =
+        await DharamshalaCommittee.create(
+          safeData
+        );
+
+      return buildResponse(
+        DataConstant.OK,
+        "Committee member added successfully",
+        committee
+      );
+    }
+
+    /* ─────────────────────────────
+       UPDATE
+    ───────────────────────────── */
+
+    const updatedCommittee =
+      await DharamshalaCommittee.findByIdAndUpdate(
+        id,
+        safeData,
+        {
+          new: true,
+        }
+      );
+
+    if (!updatedCommittee) {
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        "Committee member not found",
+        null
+      );
+    }
+
+    return buildResponse(
+      DataConstant.OK,
+      "Committee member updated successfully",
+      updatedCommittee
+    );
+  } catch (err) {
+    logger.error(
+      `addDharamshalaCommittee error ${err.message}`
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+}
+
+/* ─────────────────────────────────────
+   GET ALL COMMITTEE MEMBERS
+───────────────────────────────────── */
+
+async function getAllDharamshalaCommittee({
+  pageIndex,
+  pageSize,
+  dharamshalaId,
+  status,
+  searchText,
+}) {
+  try {
+    let query = {};
+
+    /* ─────────────────────────────
+       STATUS FILTER
+    ───────────────────────────── */
+
+    if (
+      status !== undefined &&
+      status !== null &&
+      status !== ""
+    ) {
+      query.status =
+        parseInt(status);
+    } else {
+      query.status = {
+        $in: [
+          DataConstant.SHORT_ONE,
+          DataConstant.SHORT_TWO,
+        ],
+      };
+    }
+
+    /* ─────────────────────────────
+       DHARAMSHALA FILTER
+    ───────────────────────────── */
+
+    if (dharamshalaId) {
+      query.dharamshalaId =
+        dharamshalaId;
+    }
+
+    const skip =
+      pageIndex * pageSize;
+
+    let aggregateQuery = [
+      {
+        $match: query,
+      },
+
+      {
+        $lookup: {
+          from: "admin_users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+
+      {
+        $unwind: {
+          path: "$user",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      {
+        $lookup: {
+          from: "dharamshalas",
+          localField:
+            "dharamshalaId",
+          foreignField: "_id",
+          as: "dharamshala",
+        },
+      },
+
+      {
+        $unwind: {
+          path: "$dharamshala",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+    ];
+
+    /* ─────────────────────────────
+       SEARCH
+    ───────────────────────────── */
+
+    if (
+      searchText &&
+      searchText.trim() !== ""
+    ) {
+      aggregateQuery.push({
+        $match: {
+          $or: [
+            {
+              "user.name": {
+                $regex:
+                  searchText.trim(),
+                $options: "i",
+              },
+            },
+
+            {
+              committeeRole: {
+                $regex:
+                  searchText.trim(),
+                $options: "i",
+              },
+            },
+
+            {
+              "dharamshala.name": {
+                $regex:
+                  searchText.trim(),
+                $options: "i",
+              },
+            },
+          ],
+        },
+      });
+    }
+
+    aggregateQuery.push(
+      {
+        $sort: {
+          createdAt: -1,
+        },
+      },
+
+      {
+        $skip: skip,
+      },
+
+      {
+        $limit: pageSize,
+      }
+    );
+
+    const committeeList =
+      await DharamshalaCommittee.aggregate(
+        aggregateQuery
+      );
+
+    const totalRecords =
+      await DharamshalaCommittee.countDocuments(
+        query
+      );
+
+    if (
+      !committeeList ||
+      committeeList.length === 0
+    ) {
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        DataConstant.RECORD_NOT_FOUND,
+        null
+      );
+    }
+
+    return buildResponse(
+      DataConstant.OK,
+      "Records fetched successfully",
+      {
+        content: committeeList,
+
+        pageIndex,
+
+        pageSize,
+
+        totalRecords,
+
+        totalPages: Math.ceil(
+          totalRecords / pageSize
+        ),
+
+        isLast:
+          pageIndex + 1 >=
+          Math.ceil(
+            totalRecords /
+              pageSize
+          ),
+
+        hasNext:
+          pageIndex + 1 <
+          Math.ceil(
+            totalRecords /
+              pageSize
+          ),
+
+        hasPrevious:
+          pageIndex > 0,
+      }
+    );
+  } catch (err) {
+    logger.error(
+      `getAllDharamshalaCommittee error ${err.message}`
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+}
+
+/* ─────────────────────────────────────
+   GET COMMITTEE MEMBER BY ID
+───────────────────────────────────── */
+
+async function getDharamshalaCommitteeById(
+  id
+) {
+  try {
+    const committee =
+      await DharamshalaCommittee.findById(
+        id
+      )
+        .populate(
+          "userId"
+        )
+        .populate(
+          "dharamshalaId"
+        );
+
+    if (!committee) {
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        "Committee member not found",
+        null
+      );
+    }
+
+    return buildResponse(
+      DataConstant.OK,
+      DataConstant.RECORD_FOUND,
+      committee
+    );
+  } catch (err) {
+    logger.error(
+      `getDharamshalaCommitteeById error ${err.message}`
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+}
+
+/* ─────────────────────────────────────
+   BLOCK / UNBLOCK / DELETE
+───────────────────────────────────── */
+
+async function blockUnblockCommitteeMember(
+  id,
+  status
+) {
+  try {
+    const committee =
+      await DharamshalaCommittee.findById(
+        id
+      );
+
+    if (!committee) {
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        "Committee member not found",
+        null
+      );
+    }
+
+    committee.status = status;
+
+    await committee.save();
+
+    let message =
+      "Status updated successfully";
+
+    if (
+      status ===
+      DataConstant.SHORT_ZERO
+    ) {
+      message =
+        "Committee member deleted successfully";
+    }
+
+    if (
+      status ===
+      DataConstant.SHORT_ONE
+    ) {
+      message =
+        "Committee member activated successfully";
+    }
+
+    if (
+      status ===
+      DataConstant.SHORT_TWO
+    ) {
+      message =
+        "Committee member inactivated successfully";
+    }
+
+    return buildResponse(
+      DataConstant.OK,
+      message,
+      committee
+    );
+  } catch (err) {
+    logger.error(
+      `blockUnblockCommitteeMember error ${err.message}`
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+}
+
+module.exports = {
+    addDharamshalaCommittee,
+    blockUnblockCommitteeMember,
+    getAllDharamshalaCommittee,
+    getDharamshalaCommitteeById,
+  addDharamshala,
+  getDharamshalaById,
+  getAllDharamshala,
+  blockUnblockDharamshala,
+  getTotalDharamshalaCount,
+};

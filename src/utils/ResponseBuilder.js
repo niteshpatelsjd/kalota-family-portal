@@ -102,7 +102,53 @@ async function buildUserRoleResponse(user) {
   };
 }
 
+async function buildDharamshalaResponse(
+  data
+) {
+  return {
+    id: data._id,
+    name: data.name,
+    description: data.description,
+
+    villageId:
+      data.villageId?._id || null,
+
+    villageName:
+      data.villageId?.name || null,
+
+    address: data.address,
+
+    mobileNumber:
+      data.mobileNumber,
+
+    alternateMobileNumber:
+      data.alternateMobileNumber,
+
+    email: data.email,
+
+    website: data.website,
+
+    establishedYear:
+      data.establishedYear,
+
+    profileImage:
+      data.profileImage,
+
+    bannerImage:
+      data.bannerImage,
+
+    status: data.status,
+
+    createdAt: data.createdAt,
+
+    updatedAt: data.updatedAt,
+  };
+}
+
+
+
 module.exports = {
+  buildDharamshalaResponse,
   buildUserResponse,
   buildUserRoleResponse,
   buildRoleResponse,
