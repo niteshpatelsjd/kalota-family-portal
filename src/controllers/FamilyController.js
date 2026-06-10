@@ -22,6 +22,37 @@ async function createFamilyHead(req, res) {
   }
 }
 
+async function createOrUpdateFamilyHead(
+  req,
+  res
+) {
+
+  try {
+
+    const response =
+      await FamilyService.createOrUpdateFamilyHead(
+        req.body,
+        req.file
+      );
+
+    return res
+      .status(response.responseCode)
+      .json(response);
+
+  } catch (err) {
+
+    logger.error(
+      "Error in createOrUpdateFamilyHead controller: %s",
+      err.stack || err.message
+    );
+
+    return res.status(500).json({
+      responseCode: 500,
+      message: err.message,
+    });
+  }
+}
+
 // Check Duplicate Family
 async function checkDuplicateFamily(req, res) {
   try {
@@ -120,4 +151,5 @@ module.exports = {
   createFamilyHead,
   checkDuplicateFamily,
   getFamilyProfileById,
+  createOrUpdateFamilyHead,
 };

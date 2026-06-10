@@ -469,6 +469,338 @@ const duplicate =
   }
 }
 
+async function createOrUpdateFamilyHead(
+  body,
+  file
+) {
+
+  const {
+    familyRefId,
+  } = body;
+
+  if (familyRefId) {
+
+    return await updateFamilyHead(
+      body,
+      file
+    );
+  }
+
+  return await createFamilyHead(
+    body,
+    file
+  );
+}
+
+async function updateFamilyHead(
+  body,
+  file
+) {
+
+  const session =
+    await mongoose.startSession();
+
+  try {
+
+    session.startTransaction();
+
+    logger.info(
+      "Starting updateFamilyHead service"
+    );
+
+    const {
+      familyRefId,
+
+      firstName,
+      middleName,
+      lastName,
+
+      fatherFirstName,
+      fatherMiddleName,
+      fatherLastName,
+
+      motherFirstName,
+      motherMiddleName,
+      motherLastName,
+
+      gender,
+      dob,
+      mobile,
+      email,
+      occupation,
+      education,
+      maritalStatus,
+      villageId,
+    } = body;
+
+    /*
+     * Validate familyRefId
+     */
+
+    if (!familyRefId) {
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "familyRefId is required"
+      );
+    }
+
+    /*
+     * Find Existing Family
+     */
+
+    const family =
+      await Family.findById(
+        familyRefId
+      );
+
+    if (!family) {
+
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        "Family not found"
+      );
+    }
+
+    /*
+     * Find Family Head
+     */
+
+    const headPerson =
+      await Person.findById(
+        family.familyHeadId
+      );
+
+    if (!headPerson) {
+
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        "Family head not found"
+      );
+    }
+
+    /*
+     * Validate Required Fields
+     */
+
+    if (!firstName) {
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "First name is required"
+      );
+    }
+
+    if (!lastName) {
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Last name is required"
+      );
+    }
+
+    if (!fatherFirstName) {
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Father first name is required"
+      );
+    }
+
+    if (!motherFirstName) {
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Mother first name is required"
+      );
+    }
+
+    if (!gender) {
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Gender is required"
+      );
+    }
+
+    if (!dob) {
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "DOB is required"
+      );
+    }
+
+    if (!villageId) {
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Village Id is required"
+      );
+    }
+
+    /*
+     * Validate Village
+     */
+
+    const village =
+      await Village.findById(
+        villageId
+      );
+
+    if (!village) {
+
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        "Village not found"
+      );
+    }
+
+    /*
+     * Check Duplicate Family
+     */
+
+    const duplicate =
+      await findDuplicateFamily({
+        firstName,
+        lastName,
+        fatherFirstName,
+        motherFirstName,
+        dob,
+        villageId,
+      });
+
+    if (
+      duplicate &&
+      duplicate._id.toString() !==
+        familyRefId.toString()
+    ) {
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        `Family already exists with Family ID: ${duplicate.familyId}`
+      );
+    }
+
+    /*
+     * Upload Image
+     */
+
+    let profileImage =
+      headPerson.profileImage || null;
+
+    if (file) {
+
+      profileImage =
+        await uploadFile(
+          file,
+          "family-profile"
+        );
+    }
+
+    /*
+     * Update Person
+     */
+
+    await updatePerson(
+      headPerson._id,
+      {
+        firstName,
+        middleName,
+        lastName,
+
+        fatherFirstName,
+        fatherMiddleName,
+        fatherLastName,
+
+        motherFirstName,
+        motherMiddleName,
+        motherLastName,
+
+        gender,
+
+        dob,
+
+        mobile,
+
+        email,
+
+        occupation,
+
+        education,
+
+        maritalStatus,
+
+        villageId:
+          village._id,
+
+        profileImage,
+      },
+      session
+    );
+
+    /*
+     * Update Family
+     */
+
+    await Family.findByIdAndUpdate(
+      family._id,
+      {
+        familyTitle:
+          `${firstName} ${lastName} Family`,
+
+        districtId:
+          village.districtId,
+
+        tehsilId:
+          village.tehsilId,
+
+        villageId:
+          village._id,
+      },
+      {
+        session,
+      }
+    );
+
+    /*
+     * Commit Transaction
+     */
+
+    await session.commitTransaction();
+
+    logger.info(
+      "Family updated successfully"
+    );
+
+    return buildResponse(
+      DataConstant.OK,
+      "Family updated successfully"
+    );
+
+  } catch (err) {
+
+    await session.abortTransaction();
+
+    logger.error(
+      "Error in updateFamilyHead: %s",
+      err.stack || err.message
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      DataConstant.SERVER_MESSAGE
+    );
+
+  } finally {
+
+    session.endSession();
+
+    logger.info(
+      "updateFamilyHead session ended"
+    );
+  }
+}
 /* ───────────────── CHECK DUPLICATE FAMILY ───────────────── */
 
 async function checkDuplicateFamily(
@@ -1123,6 +1455,7 @@ async function getAllFamilies(
   }
 }
 module.exports = {
+  createOrUpdateFamilyHead,
   createFamilyHead,
   checkDuplicateFamily,
   getFamilyProfileById,

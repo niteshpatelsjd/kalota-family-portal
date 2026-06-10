@@ -109,6 +109,112 @@ router.post(
   familyController.createFamilyHead
 );
 
+ /**
+ * @openapi
+ * /admin/family/createOrUpdateFamily:
+ *   post:
+ *     tags: [Family Controller]
+ *     summary: Create or Update family head
+ *
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *
+ *             properties:
+ *
+ *               familyRefId:
+ *                 type: string
+ *                 description: Required only for update
+ *
+ *               firstName:
+ *                 type: string
+ *
+ *               middleName:
+ *                 type: string
+ *
+ *               lastName:
+ *                 type: string
+ *
+ *               gender:
+ *                 type: string
+ *                 enum:
+ *                   - MALE
+ *                   - FEMALE
+ *                   - OTHER
+ *
+ *               dob:
+ *                 type: string
+ *                 example: "25-12-1995"
+ *
+ *               mobile:
+ *                 type: string
+ *
+ *               email:
+ *                 type: string
+ *
+ *               occupation:
+ *                 type: string
+ *                 enum:
+ *                   - Farmer
+ *                   - Professional
+ *                   - Business
+ *
+ *               education:
+ *                 type: string
+ *                 enum:
+ *                   - School
+ *                   - Diploma
+ *                   - Graduation
+ *                   - Post Graduation
+ *
+ *               maritalStatus:
+ *                 type: string
+ *                 enum:
+ *                   - SINGLE
+ *                   - MARRIED
+ *                   - DIVORCED
+ *                   - WIDOW
+ *                   - WIDOWER
+ *
+ *               villageId:
+ *                 type: string
+ *
+ *               fatherFirstName:
+ *                 type: string
+ *
+ *               fatherMiddleName:
+ *                 type: string
+ *
+ *               fatherLastName:
+ *                 type: string
+ *
+ *               motherFirstName:
+ *                 type: string
+ *
+ *               motherMiddleName:
+ *                 type: string
+ *
+ *               motherLastName:
+ *                 type: string
+ *
+ *               profileImage:
+ *                 type: string
+ *                 format: binary
+ *
+ *     responses:
+ *       200:
+ *         description: Family created or updated successfully
+ */
+
+router.post(
+  "/createOrUpdateFamily",
+  upload.single("profileImage"),
+  familyController.createOrUpdateFamilyHead
+);
+
 /**
  * @openapi
  * /admin/family/checkDuplicateFamily:
