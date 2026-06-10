@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 
 const Family = require("../models/Family");
 const Village = require("../models/Village");
+const Person = require("../models/Person");
 
 const logger = require("../utils/logger");
 const buildResponse = require("../utils/response");
@@ -643,6 +644,7 @@ async function checkDuplicateFamily(
 /* ───────────────── GET FAMILY PROFILE ───────────────── */
 
 async function getFamilyProfileById(familyId) {
+
   try {
 
     logger.info("Fetching family profile");
@@ -673,17 +675,17 @@ async function getFamilyProfileById(familyId) {
     const members =
       await getPersonsByFamilyId(familyId);
 
-    // =========================
-    // Add custom village names
-    // =========================
+    // =====================================
+    // Add village names + spouse names
+    // =====================================
 
     const updatedMembers = await Promise.all(
 
       members.map(async (memberDoc) => {
 
-        // IMPORTANT
-        // Convert mongoose document to plain object
-        const member = memberDoc.toObject();
+        // Convert mongoose document
+        const member =
+          memberDoc.toObject();
 
         const relationType =
           member.relationType?.toUpperCase();
@@ -691,9 +693,12 @@ async function getFamilyProfileById(familyId) {
         // Default values
         member.nativeVillageName = "";
         member.marriedVillageName = "";
+        member.husbandName = "";
+        member.wifeName = "";
 
         // =====================================
-        // MOTHER & SPOUSE -> nativeVillageName
+        // MOTHER & SPOUSE
+        // -> nativeVillageName
         // =====================================
 
         if (
@@ -707,8 +712,6 @@ async function getFamilyProfileById(familyId) {
               await Village.findById(
                 member.parentVillageId
               );
-
-            console.log("Village Data:", villageData);
 
             member.nativeVillageName =
               villageData?.name || "";
@@ -738,6 +741,52 @@ async function getFamilyProfileById(familyId) {
 
             member.marriedVillageName =
               villageData?.name || "";
+          }
+        }
+
+        // =====================================
+        // Husband / Wife Name
+        // =====================================
+
+        if (
+          member.spouseIds &&
+          member.spouseIds.length > 0
+        ) {
+
+          const spouse =
+            await Person.findById(
+              member.spouseIds[0]
+            );
+
+          if (spouse) {
+
+            const spouseFullName = [
+
+              spouse.firstName,
+              spouse.middleName,
+              spouse.lastName
+
+            ]
+              .filter(Boolean)
+              .join(" ");
+
+            // FEMALE -> Husband Name
+            if (
+              member.gender === "FEMALE"
+            ) {
+
+              member.husbandName =
+                spouseFullName;
+            }
+
+            // MALE -> Wife Name
+            if (
+              member.gender === "MALE"
+            ) {
+
+              member.wifeName =
+                spouseFullName;
+            }
           }
         }
 
