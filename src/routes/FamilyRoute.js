@@ -4,8 +4,10 @@ const express = require("express");
 const router = express.Router();
 
 const familyController = require("../controllers/FamilyController");
-const upload = require("../middlewares/uploadMiddleware");
-
+const multer = require("multer");
+// Multer setup (memory storage so we can pass buffer to fileUtil)
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 /**
  * @openapi
  * tags:
