@@ -178,6 +178,11 @@ function buildCommitteeResponse(
                 committee.userId
                   .profileUrl ||
                 null,
+
+              mobile:
+                committee.userId
+                  .mobileNumber ||
+                null,
             }
           : null,
     })

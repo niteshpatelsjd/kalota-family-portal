@@ -99,7 +99,7 @@ async function findCommitteeByDharamshalaId(
   })
     .populate({
       path: "userId",
-      select: "name profileUrl",
+      select: "name profileUrl mobileNumber",
     })
     .lean();
 }
