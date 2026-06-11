@@ -1,5 +1,7 @@
 const Dharamshala =
   require("../models/Dharamshala");
+  const DharamshalaCommittee =
+  require("../models/DharamshalaCommittee");
 
 /* ─────────────────────────────────────
    CREATE
@@ -88,7 +90,21 @@ async function findByName(name) {
   });
 }
 
+async function findCommitteeByDharamshalaId(
+  dharamshalaId
+) {
+  return DharamshalaCommittee.find({
+    dharamshalaId,
+    status: 1,
+  })
+    .populate({
+      path: "userId",
+      select: "name profileUrl",
+    })
+    .lean();
+}
 module.exports = {
+    findCommitteeByDharamshalaId,
   createDharamshala,
   updateDharamshala,
   findById,

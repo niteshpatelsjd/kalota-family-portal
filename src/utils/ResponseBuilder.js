@@ -107,8 +107,8 @@ async function buildDharamshalaResponse(
 ) {
   return {
     id: data._id,
-    name: data.name,
-    description: data.description,
+    name: data.name || null,
+    description: data.description || null,
 
     villageId:
       data.villageId?._id || null,
@@ -116,38 +116,77 @@ async function buildDharamshalaResponse(
     villageName:
       data.villageId?.name || null,
 
-    address: data.address,
+    address: data.address || null,
 
     mobileNumber:
-      data.mobileNumber,
+      data.mobileNumber || null,
 
     alternateMobileNumber:
-      data.alternateMobileNumber,
+      data.alternateMobileNumber || null,
 
-    email: data.email,
+    email: data.email || null,
 
-    website: data.website,
+    website: data.website || null,
 
     establishedYear:
-      data.establishedYear,
+      data.establishedYear || null,
 
     profileImage:
-      data.profileImage,
+      data.profileImage || null,
 
     bannerImage:
-      data.bannerImage,
+      data.bannerImage || null,
 
-    status: data.status,
+    status: data.status || null,
 
     createdAt: data.createdAt,
 
     updatedAt: data.updatedAt,
   };
 }
+function buildCommitteeResponse(
+  committees
+) {
+  return committees.map(
+    (committee) => ({
+      id: committee._id,
 
+      committeeRole:
+        committee.committeeRole,
+
+      joiningDate:
+        committee.joiningDate,
+
+      endDate: committee.endDate,
+
+      remarks: committee.remarks,
+
+      userResponse:
+        committee.userId
+          ? {
+              id:
+                committee.userId._id,
+
+              userId:
+                committee.userId._id,
+
+              name:
+                committee.userId
+                  .name || "",
+
+              profileImage:
+                committee.userId
+                  .profileUrl ||
+                null,
+            }
+          : null,
+    })
+  );
+}
 
 
 module.exports = {
+  buildCommitteeResponse,
   buildDharamshalaResponse,
   buildUserResponse,
   buildUserRoleResponse,

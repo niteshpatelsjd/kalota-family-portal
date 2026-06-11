@@ -21,7 +21,7 @@ const DharamshalaCommitteeSchema =
         type: String,
         enum: [
           "PRESIDENT",
-          "VICE_PRESIDENT",
+          "VICE_PRESIDENT", 
           "TREASURER",
           "SECRETARY",
           "MEMBER",

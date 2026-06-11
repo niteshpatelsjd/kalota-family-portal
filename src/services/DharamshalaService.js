@@ -18,7 +18,7 @@ const buildResponse =
   require("../utils/response");
 
 const {
-  buildDharamshalaResponse,
+  buildDharamshalaResponse,buildCommitteeResponse
 } = require(
   "../utils/ResponseBuilder"
 );
@@ -256,12 +256,25 @@ async function getDharamshalaById(id) {
       );
     }
 
+    const committees =
+      await dharamshalaRepo.findCommitteeByDharamshalaId(
+        id
+      );
+
+    const response =
+      await buildDharamshalaResponse(
+        dharamshala
+      );
+
+    response.committeeMembers =
+      await buildCommitteeResponse(
+        committees
+      );
+
     return buildResponse(
       DataConstant.OK,
       DataConstant.RECORD_FOUND,
-      await buildDharamshalaResponse(
-        dharamshala
-      )
+      response
     );
   } catch (err) {
     logger.error(
@@ -275,7 +288,6 @@ async function getDharamshalaById(id) {
     );
   }
 }
-
 /* ─────────────────────────────────────
    GET ALL
 ───────────────────────────────────── */
