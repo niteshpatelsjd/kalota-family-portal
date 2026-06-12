@@ -161,6 +161,8 @@ function buildCommitteeResponse(
 
       remarks: committee.remarks,
 
+      status: committee.status,
+
       userResponse:
         committee.userId
           ? {
