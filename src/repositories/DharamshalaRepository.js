@@ -93,10 +93,12 @@ async function findByName(name) {
 async function findCommitteeByDharamshalaId(
   dharamshalaId
 ) {
-  return DharamshalaCommittee.find({
-    dharamshalaId,
-    status: 1,
-  })
+return DharamshalaCommittee.find({
+  dharamshalaId,
+  status: {
+    $in: [1, 2],
+  },
+})
     .populate({
       path: "userId",
       select: "name profileUrl mobileNumber",
