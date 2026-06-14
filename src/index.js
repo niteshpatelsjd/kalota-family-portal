@@ -18,6 +18,7 @@ const tehsilRoutes = require("./routes/TehsilRoute");
 const villageRoutes = require("./routes/VillageRoute");
 const personRoutes = require("./routes/PersonRoute");
 const dharamshalaRoutes = require("./routes/DharamshalaRoute");
+const financeRoutes = require("./routes/FinanceRoute");
 
 const app = express();
 app.use(cors());
@@ -45,6 +46,7 @@ app.use("/admin/tehsil", tehsilRoutes);
 app.use("/admin/village", villageRoutes);
 app.use("/admin/person", personRoutes);
 app.use("/admin/dharamshala", dharamshalaRoutes);
+app.use("/admin/finance", financeRoutes);
 
 app.get("/health", (_, res) => res.json({ status: "up" }));
 
