@@ -1,5 +1,5 @@
 const userService = require("../services/UserService");
-const buildResponse = require("../utils/Response");
+const buildResponse = require("../utils/response");
 const fileUtil = require("../utils/FileUtil");
 const logger = require("../utils/logger");
 const userResponse = require("../response/UserResponse");
