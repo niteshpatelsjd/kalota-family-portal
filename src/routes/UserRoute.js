@@ -1,0 +1,399 @@
+// routes/UserRoute.js
+
+const express = require("express");
+const router = express.Router();
+
+const userController = require("../controllers/UserController");
+
+const multer = require("multer");
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+
+/**
+ * @openapi
+ * tags:
+ *   - name: User Controller
+ *     description: User authentication, profile and family registration APIs
+ */
+
+/**
+ * @openapi
+ * /admin/mobile/user/requestOtp:
+ *   post:
+ *     tags: [User Controller]
+ *     summary: Request login OTP
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - mobileNumber
+ *             properties:
+ *               mobileNumber:
+ *                 type: string
+ *                 example: "9876543210"
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ */
+router.post(
+  "/requestOtp",
+  userController.requestOtp
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/verifyOtp:
+ *   post:
+ *     tags: [User Controller]
+ *     summary: Verify login OTP
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - mobileNumber
+ *               - otp
+ *             properties:
+ *               mobileNumber:
+ *                 type: string
+ *               otp:
+ *                 type: string
+ *               deviceType:
+ *                 type: string
+ *               deviceToken:
+ *                 type: string
+ *               voipToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: OTP verified successfully
+ */
+router.post(
+  "/verifyOtp",
+  userController.verifyOtp
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/updateProfile:
+ *   post:
+ *     tags: [User Controller]
+ *     summary: Update user profile
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - id
+ *             properties:
+ *               id:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               descriptions:
+ *                 type: string
+ *               profileImage:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ */
+router.post(
+  "/updateProfile",
+  upload.single("profileImage"),
+  userController.updateProfile
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/getProfile:
+ *   get:
+ *     tags: [User Controller]
+ *     summary: Get user profile
+ *     parameters:
+ *       - in: query
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User profile fetched successfully
+ */
+router.get(
+  "/getProfile",
+  userController.getProfile
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/logout:
+ *   get:
+ *     tags: [User Controller]
+ *     summary: Logout user
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ */
+router.get(
+  "/logout",
+  userController.logout
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/bulkGetProfiles:
+ *   post:
+ *     tags: [User Controller]
+ *     summary: Get multiple user profiles
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               ids:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Profiles fetched successfully
+ */
+router.post(
+  "/bulkGetProfiles",
+  userController.bulkGetProfiles
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/getAllUsers:
+ *   get:
+ *     tags: [User Controller]
+ *     summary: Get all users
+ *     parameters:
+ *       - in: query
+ *         name: pageIndex
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: searchText
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Users fetched successfully
+ */
+router.get(
+  "/getAllUsers",
+  userController.getAllUsers
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/getAllUserSessions:
+ *   get:
+ *     tags: [User Controller]
+ *     summary: Get all user sessions
+ *     parameters:
+ *       - in: query
+ *         name: pageIndex
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: searchText
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Sessions fetched successfully
+ */
+router.get(
+  "/getAllUserSessions",
+  userController.getAllUserSessions
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/blockUnblockUser:
+ *   post:
+ *     tags: [User Controller]
+ *     summary: Block or unblock user
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - id
+ *               - status
+ *             properties:
+ *               id:
+ *                 type: string
+ *               status:
+ *                 type: integer
+ *                 example: 1
+ *               remark:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: User status updated successfully
+ */
+router.post(
+  "/blockUnblockUser",
+  userController.blockUnblockUser
+);
+
+/**
+ * =====================================================
+ * FAMILY REGISTRATION FLOW
+ * =====================================================
+ */
+
+/**
+ * @openapi
+ * /admin/mobile/user/sendFamilyOtp:
+ *   post:
+ *     tags: [User Controller]
+ *     summary: Send OTP to family head mobile number
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - familyId
+ *             properties:
+ *               familyId:
+ *                 type: string
+ *                 example: FAM000001
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ */
+router.post(
+  "/sendFamilyOtp",
+  userController.sendFamilyOtp
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/verifyFamilyOtp:
+ *   post:
+ *     tags: [User Controller]
+ *     summary: Verify family OTP
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - familyId
+ *               - otp
+ *             properties:
+ *               familyId:
+ *                 type: string
+ *               otp:
+ *                 type: string
+ *                 example: "1234"
+ *     responses:
+ *       200:
+ *         description: OTP verified successfully
+ */
+router.post(
+  "/verifyFamilyOtp",
+  userController.verifyFamilyOtp
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/registerFamilyMember:
+ *   post:
+ *     tags: [User Controller]
+ *     summary: Register family member
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - familyId
+ *               - mobileNumber
+ *               - firstName
+ *               - lastName
+ *             properties:
+ *               familyId:
+ *                 type: string
+ *               mobileNumber:
+ *                 type: string
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               fatherFirstName:
+ *                 type: string
+ *               motherFirstName:
+ *                 type: string
+ *               dob:
+ *                 type: string
+ *                 example: "25-12-1995"
+ *               relationType:
+ *                 type: string
+ *                 enum:
+ *                   - HEAD
+ *                   - FATHER
+ *                   - MOTHER
+ *                   - SPOUSE
+ *                   - SON
+ *                   - DAUGHTER
+ *                   - BROTHER
+ *                   - SISTER
+ *                   - GRANDSON
+ *                   - GRANDDAUGHTER
+ *               profileImage:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Registration submitted successfully
+ */
+router.post(
+  "/registerFamilyMember",
+  upload.single("profileImage"),
+  userController.registerFamilyMember
+);
+
+module.exports = router;
