@@ -2,7 +2,7 @@ const userRepo = require("../repositories/UserRepository");
 const userDeviceRepo = require("../repositories/UserDeviceRepository");
 const redis = require("../config/RedisConfig");
 const jwtUtil = require("../utils/JwtUtil");
-const uploadFile = require("../utils/FileUtil");
+const { uploadFile } = require("../utils/FileUtil");
 const buildResponse = require("../utils/response");
 const userResponse = require("../response/UserResponse");
 const logger = require("../utils/logger");
@@ -166,25 +166,26 @@ if (!user) {
       );
     }
 
-      if (
-        user.verificationStatus ===
-        "PENDING"
-      ) {
-        return buildResponse(
-            403,
-            "Your registration is under review"
-        );
-      }
+     if (user.verificationStatus === "PENDING") {
+  return buildResponse(
+    403,
+    "Your registration is under review",
+    {
+      status: "PENDING"
+    }
+  );
+}
 
-      if (
-        user.verificationStatus ===
-        "REJECTED"
-      ) {
-        return buildResponse(
-            403,
-            "Your registration has been rejected"
-        );
-      }
+if (user.verificationStatus === "REJECTED") {
+  return buildResponse(
+    403,
+    "Your registration has been rejected",
+    {
+      status: "REJECTED",
+      rejectedReason: user.rejectedReason
+    }
+  );
+}
 
     if(!user.isVerified) {
       logger.warn(`User verification is pending: ${user._id}`);
