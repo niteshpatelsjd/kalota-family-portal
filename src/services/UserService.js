@@ -145,10 +145,17 @@ async function verifyOtp( mobileNumber, otp, deviceType, deviceToken) {
     await redis.del(key);
     logger.info(`OTP deleted from Redis for ${key}`);
 
-    if(!user){
-       logger.info(`User not found`);
-       return buildResponse(404, "User not found", null);
+if (!user) {
+  return buildResponse(
+    200,
+    "OTP verified",
+    {
+      isRegistered: false,
+      accessToken: null,
+      user: null
     }
+  );
+}
 
     if (user.status === 2) {
       logger.warn(`Blocked user attempting login: ${user._id}`);
@@ -237,10 +244,15 @@ async function verifyOtp( mobileNumber, otp, deviceType, deviceToken) {
     }
 
     // 🔹 Return success response
-    return buildResponse(200, "OTP verified successfully", {
-      accessToken: token,
-      user: userResponse.buildUserResponse(user),
-    });
+return buildResponse(
+  200,
+  "OTP verified successfully",
+  {
+    isRegistered: true,
+    accessToken: token,
+    user: userResponse.buildUserResponse(user)
+  }
+);
 
   } catch (err) {
     logger.error(`verifyOtp failed for ${key}: ${err.message}`, err);
