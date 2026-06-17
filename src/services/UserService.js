@@ -502,6 +502,74 @@ const user = await User.create({
         user
     );
 }
+
+async function verifyUserRegistration(
+  userId,
+  action,
+  rejectedReason
+) {
+  const user = await User.findById(userId);
+
+  if (!user) {
+    return buildResponse(
+      404,
+      "User not found",
+      null
+    );
+  }
+
+  if (
+    user.verificationStatus ===
+    "APPROVED"
+  ) {
+    return buildResponse(
+      400,
+      "User already approved",
+      null
+    );
+  }
+
+  if (action === "APPROVED") {
+    user.verificationStatus =
+      "APPROVED";
+
+    user.isVerified = true;
+
+    user.rejectedReason = null;
+
+    await user.save();
+
+    return buildResponse(
+      200,
+      "User approved successfully",
+      user
+    );
+  }
+
+  if (action === "REJECTED") {
+    user.verificationStatus =
+      "REJECTED";
+
+    user.isVerified = false;
+
+    user.rejectedReason =
+      rejectedReason || "Rejected by administrator";
+
+    await user.save();
+
+    return buildResponse(
+      200,
+      "User rejected successfully",
+      user
+    );
+  }
+
+  return buildResponse(
+    400,
+    "Invalid action",
+    null
+  );
+}
 // 🟢 Create or get user by mobile
 async function createOrGetByMobile( mobileNumber) {
   logger.info(`createOrGetByMobile: ${mobileNumber}`);
@@ -627,7 +695,7 @@ async function getProfileByIds(ids) {
 
 async function getAllUsers({ pageIndex = 0, pageSize = 10, status, searchText = "" }) {
   try {
-    let query = { profileCompleted: true };
+    let query = {  };
 
     // Base status condition (default)
     query.status = { $in: [1, 2] };
@@ -848,4 +916,5 @@ module.exports = {
   sendFamilyOtp,
   verifyFamilyOtp,
   registerFamilyMember,
+  verifyUserRegistration,
 };

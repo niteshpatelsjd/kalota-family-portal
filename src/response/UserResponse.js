@@ -4,21 +4,46 @@ function buildUserResponse(user) {
 
   return {
     id: user._id,
+
+    // Basic Details
     name: user.name || "",
+    firstName: user.firstName || "",
+    lastName: user.lastName || "",
+    fatherFirstName: user.fatherFirstName || "",
+    motherFirstName: user.motherFirstName || "",
+    gender: user.gender || "",
+    dob: user.dob || "",
+    relationType: user.relationType || "",
+
+    // Contact Details
     email: user.email || "",
     mobileNumber: user.mobileNumber || "",
+
+    // Family Details
+    familyId: user.familyId || "",
+    familyHeadId: user.familyHeadId || "",
+
+    // Location Details
     districtId: user.districtId || "",
     tehsilId: user.tehsilId || "",
     villageId: user.villageId || "",
-    familyId: user.familyId || "",
+
+    // Profile
     profileUrl: user.profileUrl || "",
-    status: user.status,
+    descriptions: user.descriptions || "",
+
+    // Status
+    status: user.status || 1,
     profileCompleted: user.profileCompleted || false,
+    isVerified: user.isVerified || false,
+    verificationStatus: user.verificationStatus || "PENDING",
+    rejectedReason: user.rejectedReason || "",
+
+    // Audit Fields
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
   };
 }
-
 
 function buildFullUserResponse(user, device = null) {
   if (!user) return null;

@@ -58,7 +58,7 @@ exports.verifyOtp = async (req, res) => {
     return res.status(200).json(buildResponse(400, "mobileNumber and otp required", null));
   }
   const result = await userService.verifyOtp( mobileNumber, otp,deviceType, deviceToken, voipToken);
-  res.status(200).json(result);
+  res.status(result.responseCode).json(result);
 };
 
 
@@ -113,7 +113,36 @@ exports.logout = async (req, res) => {
   }
 };
 
+exports.verifyUserRegistration = async (req, res) => {
+    try {
+      const {
+        userId,
+        action,
+        rejectedReason,
+      } = req.body;
 
+      const response =
+        await userService.verifyUserRegistration(
+          userId,
+          action,
+          rejectedReason
+        );
+
+      return res
+        .status(response.responseCode)
+        .json(response);
+    } catch (error) {
+      logger.error(error);
+
+      return res.status(500).json(
+        buildResponse(
+          500,
+          "Internal server error",
+          null
+        )
+      );
+    }
+  };
 
 
 

@@ -435,4 +435,41 @@ router.post(
   userController.registerFamilyMember
 );
 
+/**
+ * @openapi
+ * /admin/mobile/user/verifyRegistration:
+ *   put:
+ *     tags:
+ *       - User Controller
+ *     summary: Approve or reject user registration
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *               - action
+ *             properties:
+ *               userId:
+ *                 type: string
+ *
+ *               action:
+ *                 type: string
+ *                 enum:
+ *                   - APPROVED
+ *                   - REJECTED
+ *
+ *               rejectedReason:
+ *                 type: string
+ *
+ *     responses:
+ *       200:
+ *         description: Registration status updated
+ */
+router.put(
+  "/verifyRegistration",
+  userController.verifyUserRegistration
+);
 module.exports = router;
