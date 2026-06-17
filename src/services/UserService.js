@@ -2,7 +2,7 @@ const userRepo = require("../repositories/UserRepository");
 const userDeviceRepo = require("../repositories/UserDeviceRepository");
 const redis = require("../config/RedisConfig");
 const jwtUtil = require("../utils/JwtUtil");
-const fileUtil = require("../utils/FileUtil");
+const uploadFile = require("../utils/FileUtil");
 const buildResponse = require("../utils/response");
 const userResponse = require("../response/UserResponse");
 const logger = require("../utils/logger");
@@ -25,7 +25,7 @@ async function updateProfile(id, updates, file) {
 
     if (file) {
       try {
-        profileUrl = await fileUtil(file);
+        profileUrl = await uploadFile(file);
         logger.info(`📸 Uploaded media file: ${profileUrl}`);
       } catch (err) {
         logger.error("❌ Failed to upload media file", {
@@ -456,7 +456,7 @@ async function registerFamilyMember(
 
     if (file) {
       try {
-        profileUrl = await fileUtil(file);
+        profileUrl = await uploadFile(file);
         logger.info(`📸 Uploaded media file: ${profileUrl}`);
       } catch (err) {
         logger.error("❌ Failed to upload media file", {
