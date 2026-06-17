@@ -464,40 +464,37 @@ async function registerFamilyMember(
         });
       }
     }
-    const user =
-        await User.create({
+const user = await User.create({
+  mobileNumber: payload.mobileNumber,
 
-            mobileNumber:
-                payload.mobileNumber,
+  firstName: payload.firstName,
+  lastName: payload.lastName,
 
-            familyId:
-                family._id,
+  fatherFirstName: payload.fatherFirstName,
+  motherFirstName: payload.motherFirstName,
 
-            familyHeadId:
-                family.familyHeadId,
+  gender: payload.gender,
+  dob: payload.dob,
 
-            districtId:
-                family.districtId,
+  relationType: payload.relationType,
 
-            tehsilId:
-                family.tehsilId,
+  familyId: family._id,
+  familyHeadId: family.familyHeadId,
 
-            villageId:
-                family.villageId,
+  districtId: family.districtId,
+  tehsilId: family.tehsilId,
+  villageId: family.villageId,
 
-            name:
-                `${payload.firstName} ${payload.lastName}`,
+  name: `${payload.firstName} ${payload.lastName}`,
 
-            profileUrl,
+  profileUrl,
 
-            profileCompleted: true,
+  profileCompleted: true,
 
-            isVerified: false,
+  isVerified: false,
 
-            verificationStatus:
-                "PENDING"
-        });
-
+  verificationStatus: "PENDING",
+});
     return buildResponse(
         200,
         "Registration submitted successfully. Waiting for admin approval.",

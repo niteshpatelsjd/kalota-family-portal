@@ -341,8 +341,10 @@ router.post(
  * @openapi
  * /admin/mobile/user/registerFamilyMember:
  *   post:
- *     tags: [User Controller]
+ *     tags:
+ *       - User Controller
  *     summary: Register family member
+ *     description: Register a new family member and submit for admin approval.
  *     requestBody:
  *       required: true
  *       content:
@@ -354,41 +356,78 @@ router.post(
  *               - mobileNumber
  *               - firstName
  *               - lastName
+ *               - relationType
  *             properties:
  *               familyId:
  *                 type: string
+ *                 example: FAM100001
+ *
  *               mobileNumber:
  *                 type: string
+ *                 example: 9876543210
+ *
  *               firstName:
  *                 type: string
+ *                 example: Nitesh
+ *
  *               lastName:
  *                 type: string
+ *                 example: Patel
+ *
  *               fatherFirstName:
  *                 type: string
+ *                 example: Ramprasad
+ *
  *               motherFirstName:
  *                 type: string
+ *                 example: Sushila
+ *
+ *               gender:
+ *                 type: string
+ *                 enum:
+ *                   - MALE
+ *                   - FEMALE
+ *                   - OTHER
+ *
  *               dob:
  *                 type: string
- *                 example: "25-12-1995"
+ *                 example: 25-12-1995
+ *
  *               relationType:
  *                 type: string
  *                 enum:
  *                   - HEAD
- *                   - FATHER
- *                   - MOTHER
  *                   - SPOUSE
  *                   - SON
  *                   - DAUGHTER
+ *                   - FATHER
+ *                   - MOTHER
  *                   - BROTHER
  *                   - SISTER
+ *                   - GRANDFATHER
+ *                   - GRANDMOTHER
  *                   - GRANDSON
  *                   - GRANDDAUGHTER
+ *                   - UNCLE
+ *                   - AUNT
+ *                   - OTHER
+ *
  *               profileImage:
  *                 type: string
  *                 format: binary
+ *
  *     responses:
  *       200:
  *         description: Registration submitted successfully
+ *
+ *       404:
+ *         description: Family not found
+ *
+ *       409:
+ *         description: User already registered
+ *
+ *       500:
+ *         description: Internal server error
  */
 router.post(
   "/registerFamilyMember",
