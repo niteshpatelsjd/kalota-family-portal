@@ -61,8 +61,7 @@ const UserSchema = new mongoose.Schema(
     },
 
     familyId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Family",
+      type: String,
       required: true,
     },
 
