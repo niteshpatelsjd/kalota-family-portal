@@ -479,7 +479,7 @@ const user = await User.create({
 
   relationType: payload.relationType,
 
-  familyId: family._id,
+  familyId: payload.familyId,
   familyHeadId: family.familyHeadId,
 
   districtId: family.districtId,
