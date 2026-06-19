@@ -20,6 +20,7 @@ const personRoutes = require("./routes/PersonRoute");
 const dharamshalaRoutes = require("./routes/DharamshalaRoute");
 const userRoutes = require("./routes/UserRoute");
 const financeRoutes = require("./routes/FinanceRoute");
+const postRoutes = require("./routes/PostRoute");
 
 const app = express();
 app.use(cors());
@@ -49,6 +50,7 @@ app.use("/admin/person", personRoutes);
 app.use("/admin/dharamshala", dharamshalaRoutes);
 app.use("/admin/finance", financeRoutes);
 app.use("/admin/mobile/user", userRoutes);
+app.use("/admin/post", postRoutes);
 
 app.get("/health", (_, res) => res.json({ status: "up" }));
 

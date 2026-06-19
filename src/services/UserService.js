@@ -160,7 +160,7 @@ if (!user) {
     if (user.status === 2) {
       logger.warn(`Blocked user attempting login: ${user._id}`);
       return buildResponse(
-        403,
+        200,
         "Your account has been inactive. Please contact administrator.",
         null
       );
@@ -168,7 +168,7 @@ if (!user) {
 
      if (user.verificationStatus === "PENDING") {
   return buildResponse(
-    403,
+    200,
     "Your registration is under review",
     {
       status: "PENDING"
@@ -178,7 +178,7 @@ if (!user) {
 
 if (user.verificationStatus === "REJECTED") {
   return buildResponse(
-    403,
+    200,
     "Your registration has been rejected",
     {
       status: "REJECTED",
@@ -190,7 +190,7 @@ if (user.verificationStatus === "REJECTED") {
     if(!user.isVerified) {
       logger.warn(`User verification is pending: ${user._id}`);
       return buildResponse(
-        403,
+        200,
         "Your account has been under review. Please contact administrator.",
         null
       );
