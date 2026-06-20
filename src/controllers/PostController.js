@@ -35,26 +35,53 @@ async function getFeed(req, res) {
 }
 
 async function likeUnlikePost(req, res) {
-  const userId = req.user?._id || req.user?.id;
+  const userId =
+    req.user?._id ||
+    req.user?.id ||
+    req.body.userId;
 
   const response = await likeUnlikePostService(
     req.body,
     userId
   );
 
-  return res.status(200).json(response);
+  return res
+    .status(response.responseCode || 200)
+    .json(response);
 }
 
 async function addComment(req, res) {
-  const userId = req.user?._id || req.user?.id;
+  const userId =
+    req.user?._id ||
+    req.user?.id ||
+    req.body.userId;
 
   const response = await addCommentService(
     req.body,
     userId
   );
 
-  return res.status(200).json(response);
+  return res
+    .status(response.responseCode || 200)
+    .json(response);
 }
+
+async function viewPost(req, res) {
+  const userId =
+    req.user?._id ||
+    req.user?.id ||
+    req.body.userId;
+
+  const response = await viewPostService(
+    req.body,
+    userId
+  );
+
+  return res
+    .status(response.responseCode || 200)
+    .json(response);
+}
+
 
 async function getComments(req, res) {
   const response = await getCommentsService(req.query);
@@ -62,16 +89,7 @@ async function getComments(req, res) {
   return res.status(200).json(response);
 }
 
-async function viewPost(req, res) {
-  const userId = req.user?._id || req.user?.id;
 
-  const response = await viewPostService(
-    req.body,
-    userId
-  );
-
-  return res.status(200).json(response);
-}
 
 async function sharePost(req, res) {
   const response = await sharePostService(req.body);

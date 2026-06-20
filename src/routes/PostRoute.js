@@ -129,8 +129,6 @@ router.get(
  *   post:
  *     summary: Like or unlike a post
  *     tags: [Post]
- *     security:
- *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -139,19 +137,19 @@ router.get(
  *             type: object
  *             required:
  *               - postId
+ *               - userId
  *             properties:
  *               postId:
  *                 type: string
  *                 example: 6853ac3e6c6f4e00123abcd9
+ *               userId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd1
  *     responses:
  *       200:
  *         description: Post liked or unliked successfully
  */
-router.post(
-  "/likeUnlike",
-  
-  likeUnlikePost
-);
+router.post("/likeUnlike", likeUnlikePost);
 
 /**
  * @swagger
@@ -159,8 +157,6 @@ router.post(
  *   post:
  *     summary: Add comment on post
  *     tags: [Post]
- *     security:
- *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -169,11 +165,15 @@ router.post(
  *             type: object
  *             required:
  *               - postId
+ *               - userId
  *               - comment
  *             properties:
  *               postId:
  *                 type: string
  *                 example: 6853ac3e6c6f4e00123abcd9
+ *               userId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd1
  *               comment:
  *                 type: string
  *                 example: Very nice post
@@ -184,11 +184,37 @@ router.post(
  *       200:
  *         description: Comment added successfully
  */
-router.post(
-  "/addComment",
-  
-  addComment
-);
+router.post("/addComment", addComment);
+
+/**
+ * @swagger
+ * /admin/post/viewPost:
+ *   post:
+ *     summary: Register post view
+ *     tags: [Post]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - postId
+ *             properties:
+ *               postId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd9
+ *               userId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd1
+ *               deviceId:
+ *                 type: string
+ *                 example: iphone-15-device-id
+ *     responses:
+ *       200:
+ *         description: Post viewed successfully
+ */
+router.post("/viewPost", viewPost);
 
 /**
  * @swagger
@@ -224,40 +250,6 @@ router.get(
   
   getComments
 );
-
-/**
- * @swagger
- * /admin/post/viewPost:
- *   post:
- *     summary: Register post view
- *     tags: [Post]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - postId
- *             properties:
- *               postId:
- *                 type: string
- *                 example: 6853ac3e6c6f4e00123abcd9
- *               deviceId:
- *                 type: string
- *                 example: iphone-15-device-id
- *     responses:
- *       200:
- *         description: Post viewed successfully
- */
-router.post(
-  "/viewPost",
-  
-  viewPost
-);
-
 /**
  * @swagger
  * /admin/post/sharePost:
