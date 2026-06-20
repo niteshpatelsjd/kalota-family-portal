@@ -21,6 +21,7 @@ const dharamshalaRoutes = require("./routes/DharamshalaRoute");
 const userRoutes = require("./routes/UserRoute");
 const financeRoutes = require("./routes/FinanceRoute");
 const postRoutes = require("./routes/PostRoute");
+const notificationRoutes = require("./routes/NotificationRoute");
 
 const app = express();
 app.use(cors());
@@ -51,6 +52,7 @@ app.use("/admin/dharamshala", dharamshalaRoutes);
 app.use("/admin/finance", financeRoutes);
 app.use("/admin/mobile/user", userRoutes);
 app.use("/admin/post", postRoutes);
+app.use("/admin/notification", notificationRoutes);
 
 app.get("/health", (_, res) => res.json({ status: "up" }));
 

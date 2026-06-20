@@ -65,12 +65,39 @@ exports.requestOtp = async (req, res) => {
 
 // 🔹 Verify OTP
 exports.verifyOtp = async (req, res) => {
-  const { mobileNumber, otp, deviceType, deviceToken, voipToken } = req.body || {};
-  if (!mobileNumber  || !otp) {
-    return res.status(200).json(buildResponse(400, "mobileNumber and otp required", null));
+  const {
+    mobileNumber,
+    otp,
+    deviceType,
+    deviceToken,
+    deviceId,
+    
+  } = req.body || {};
+
+  if (!mobileNumber || !otp) {
+    return res
+      .status(200)
+      .json(
+        buildResponse(
+          400,
+          "mobileNumber and otp required",
+          null
+        )
+      );
   }
-  const result = await userService.verifyOtp( mobileNumber, otp,deviceType, deviceToken, voipToken);
-  res.status(result.responseCode).json(result);
+
+  const result = await userService.verifyOtp(
+    mobileNumber,
+    otp,
+    deviceType,
+    deviceToken,
+    deviceId
+    
+  );
+
+  return res
+    .status(result.responseCode || 200)
+    .json(result);
 };
 
 

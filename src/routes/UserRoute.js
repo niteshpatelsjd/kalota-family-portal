@@ -49,6 +49,7 @@ router.post(
  *   post:
  *     tags: [User Controller]
  *     summary: Verify login OTP
+ *     description: Verify OTP and login user. Also stores device information for push notifications.
  *     requestBody:
  *       required: true
  *       content:
@@ -61,14 +62,22 @@ router.post(
  *             properties:
  *               mobileNumber:
  *                 type: string
+ *                 example: "9876543210"
  *               otp:
  *                 type: string
+ *                 example: "1234"
  *               deviceType:
  *                 type: string
+ *                 enum:
+ *                   - ANDROID
+ *                   - IOS
+ *                 example: "ANDROID"
  *               deviceToken:
  *                 type: string
- *               voipToken:
+ *                 example: "fcm_device_token_here"
+ *               deviceId:
  *                 type: string
+ *                 example: "android_device_123"
  *     responses:
  *       200:
  *         description: OTP verified successfully

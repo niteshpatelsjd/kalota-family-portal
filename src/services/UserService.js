@@ -188,46 +188,69 @@ async function requestOtp( mobileNumber) {
   );
 }
 // 🟢 Verify OTP
-async function verifyOtp( mobileNumber, otp, deviceType, deviceToken) {
+async function verifyOtp(
+  mobileNumber,
+  otp,
+  deviceType,
+  deviceToken,
+  deviceId
+) {
   const key = `otp:${mobileNumber}`;
+
   logger.info(`verifyOtp started for ${key}`);
 
+  logger.info(
+    `Device Info Received => deviceType: ${deviceType || "NULL"}, deviceId: ${
+      deviceId || "NULL"
+    }, deviceToken: ${
+      deviceToken
+        ? deviceToken.substring(0, 30) + "..."
+        : "NULL"
+    }`
+  );
+
   try {
-    // 🔹 Get OTP from Redis
     const stored = await redis.get(key);
+
     if (!stored || stored !== otp) {
-      logger.warn(`verifyOtp: invalid or expired OTP for ${key}`);
+      logger.warn(
+        `verifyOtp: invalid or expired OTP for ${key}`
+      );
+
       await userSessionRepo.createSession({
         eventType: SESSION_EVENTS.LOGIN_FAILED.type,
         description: SESSION_EVENTS.LOGIN_FAILED.desc,
         deviceType,
         deviceToken,
       });
-      return buildResponse(401, "Invalid or expired OTP", null);
+
+      return buildResponse(
+        401,
+        "Invalid or expired OTP",
+        null
+      );
     }
 
-    // 🔹 Create or get user
-    let user = await userRepo.findByMobileNumber( mobileNumber);
-    
+    let user = await userRepo.findByMobileNumber(
+      mobileNumber
+    );
 
-        // 🔹 Delete OTP from Redis
     await redis.del(key);
     logger.info(`OTP deleted from Redis for ${key}`);
 
-if (!user) {
-  return buildResponse(
-    200,
-    "OTP verified",
-    {
-      isRegistered: false,
-      accessToken: null,
-      user: null
+    if (!user) {
+      return buildResponse(200, "OTP verified", {
+        isRegistered: false,
+        accessToken: null,
+        user: null,
+      });
     }
-  );
-}
 
     if (user.status === 2) {
-      logger.warn(`Blocked user attempting login: ${user._id}`);
+      logger.warn(
+        `Blocked user attempting login: ${user._id}`
+      );
+
       return buildResponse(
         200,
         "Your account has been inactive. Please contact administrator.",
@@ -235,29 +258,32 @@ if (!user) {
       );
     }
 
-     if (user.verificationStatus === "PENDING") {
-  return buildResponse(
-    200,
-    "Your registration is under review",
-    {
-      status: "PENDING"
+    if (user.verificationStatus === "PENDING") {
+      return buildResponse(
+        200,
+        "Your registration is under review",
+        {
+          status: "PENDING",
+        }
+      );
     }
-  );
-}
 
-if (user.verificationStatus === "REJECTED") {
-  return buildResponse(
-    200,
-    "Your registration has been rejected",
-    {
-      status: "REJECTED",
-      rejectedReason: user.rejectedReason
+    if (user.verificationStatus === "REJECTED") {
+      return buildResponse(
+        200,
+        "Your registration has been rejected",
+        {
+          status: "REJECTED",
+          rejectedReason: user.rejectedReason,
+        }
+      );
     }
-  );
-}
 
-    if(!user.isVerified) {
-      logger.warn(`User verification is pending: ${user._id}`);
+    if (!user.isVerified) {
+      logger.warn(
+        `User verification is pending: ${user._id}`
+      );
+
       return buildResponse(
         200,
         "Your account has been under review. Please contact administrator.",
@@ -265,68 +291,122 @@ if (user.verificationStatus === "REJECTED") {
       );
     }
 
-    // 🔹 Generate JWT token
     const token = jwtUtil.generate({
       sub: String(user._id),
       mobileNumber: user.mobileNumber,
     });
-    logger.info(`JWT token generated for user ${user._id}`);
 
-    try{
-        await userSessionRepo.createSession({
+    logger.info(
+      `JWT token generated for user ${user._id}`
+    );
+
+    try {
+      await userSessionRepo.createSession({
+        userId: user._id,
+        deviceType,
+        deviceToken,
+        sessionToken: token,
+        loginAt: new Date(),
+        isActive: true,
+        eventType: SESSION_EVENTS.LOGIN_SUCCESS.type,
+        description: SESSION_EVENTS.LOGIN_SUCCESS.desc,
+      });
+    } catch (err) {
+      logger.info(
+        `Error occurs on user session creation ${err}`
+      );
+    }
+
+    try {
+      if (deviceToken && deviceType && deviceId) {
+        const userDeviceData = {
           userId: user._id,
           deviceType,
           deviceToken,
-          sessionToken: token,
-          loginAt: new Date(),
-          isActive: true,
-          eventType: SESSION_EVENTS.LOGIN_SUCCESS.type,
-          description: SESSION_EVENTS.LOGIN_SUCCESS.desc,
-        });
+          deviceId,
+          notificationEnable: true,
+          status: 1,
+        };
 
-    }catch(err){
-        logger.info(`Error occurs on user session creation ${err}`);
-    }
-    // 🔹 Update or create user device
-    try {
-      const userId = user._id;
-      let userDeviceData = { userId, deviceType, deviceToken };
+        logger.info(
+          `Saving device token for user ${user._id}`
+        );
 
-      // Check if device exists
-      const existingDevice = await userDeviceRepo.findByUserId(userId);
-      if (existingDevice) {
-        logger.info(`Existing device found for user ${userId}, updating device`);
-        userDeviceData.id = existingDevice._id;
+        logger.info(
+          `Device Payload => ${JSON.stringify({
+            userId: user._id,
+            deviceType,
+            deviceId,
+            notificationEnable: true,
+            status: 1,
+          })}`
+        );
+
+        logger.info(
+          `FCM Token => ${
+            deviceToken
+              ? deviceToken.substring(0, 50) + "..."
+              : "NULL"
+          }`
+        );
+
+        const updatedDevice =
+          await userDeviceRepo.upsertUserDevice(
+            userDeviceData
+          );
+
+        logger.info(
+          `User device updated successfully`
+        );
+
+        logger.info(
+          `Device Record => ${JSON.stringify({
+            id: updatedDevice._id,
+            userId: updatedDevice.userId,
+            deviceId: updatedDevice.deviceId,
+            deviceType: updatedDevice.deviceType,
+            notificationEnable:
+              updatedDevice.notificationEnable,
+          })}`
+        );
       } else {
-        logger.info(`No existing device found for user ${userId}, creating new device`);
-      }
+        logger.warn(`Device registration skipped`);
 
-      
-      const updatedDevice = await userDeviceRepo.createUserDevice(userDeviceData);
-      const response = userResponse.buildFullUserResponse(user, updatedDevice);
-      if(user.profileCompleted){
-        await userCacheService.cacheUser(response);
+        logger.warn(
+          `userId=${user._id}, deviceType=${
+            deviceType || "NULL"
+          }, deviceId=${
+            deviceId || "NULL"
+          }, tokenPresent=${!!deviceToken}`
+        );
       }
-
-      logger.info(`User device updated/created: ${updatedDevice._id}`);
     } catch (deviceErr) {
-      logger.error(`Exception occurred while updating device token for user ${user._id}: ${deviceErr.message}`, deviceErr);
+      logger.error(
+        `Exception while updating device token for user ${user._id}: ${deviceErr.message}`,
+        deviceErr
+      );
     }
 
-    // 🔹 Return success response
-return buildResponse(
-  200,
-  "OTP verified successfully",
-  {
-    isRegistered: true,
-    accessToken: token,
-    user: userResponse.buildUserResponse(user)
-  }
-);
-
+    return buildResponse(
+      200,
+      "OTP verified successfully",
+      {
+        isRegistered: true,
+        accessToken: token,
+        user: userResponse.buildUserResponse(user),
+      }
+    );
   } catch (err) {
-    logger.error(`verifyOtp failed for ${key}: ${err.message}`, err);
-    return buildResponse(500, "Internal server error", null);
+    logger.error(
+      `verifyOtp failed for ${key}: ${err.message}`,
+      err
+    );
+
+    return buildResponse(
+      500,
+      "Internal server error",
+      null
+    );
   }
 }
 

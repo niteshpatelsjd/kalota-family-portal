@@ -28,9 +28,32 @@ async function deleteByUserIdAndToken(userId, deviceToken) {
   return await UserDevice.deleteOne({ userId, deviceToken });
 }
 
+async function upsertUserDevice(data) {
+  return UserDevice.findOneAndUpdate(
+    {
+      userId: data.userId,
+      deviceId: data.deviceId,
+    },
+    {
+      userId: data.userId,
+      deviceType: data.deviceType,
+      deviceToken: data.deviceToken,
+      deviceId: data.deviceId,
+      notificationEnable: data.notificationEnable,
+      status: data.status,
+      updatedAt: new Date(),
+    },
+    {
+      upsert: true,
+      new: true,
+    }
+  );
+}
+
 module.exports = {
   createUserDevice,
   findByUserId,
   deleteByUserId,
   deleteByUserIdAndToken, // optional
+  upsertUserDevice,
 };
