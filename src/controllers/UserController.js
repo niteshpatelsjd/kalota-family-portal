@@ -40,6 +40,18 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
+exports.updateProfileImage = async(req, res)=> {
+  const response =
+    await userService.updateProfileImageService(
+      req.body,
+      req.file
+    );
+
+  return res
+    .status(response.responseCode || 200)
+    .json(response);
+};
+
 
 // 🔹 Request OTP
 exports.requestOtp = async (req, res) => {

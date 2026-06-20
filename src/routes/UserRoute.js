@@ -115,6 +115,38 @@ router.post(
 );
 
 /**
+ * @swagger
+ * /admin/mobile/user/updateProfileImage:
+ *   post:
+ *     summary: Update user profile image
+ *     tags: [User Controller]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *               - profileImage
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd1
+ *               profileImage:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Profile image updated successfully
+ */
+router.post(
+  "/updateProfileImage",
+  upload.single("profileImage"),
+  userController.updateProfileImage
+);
+
+/**
  * @openapi
  * /admin/mobile/user/getProfile:
  *   get:

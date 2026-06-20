@@ -84,6 +84,75 @@ async function updateProfile(id, updates, file) {
   }
 }
 
+async function updateProfileImageService(body, file) {
+  try {
+    logger.info(
+      `Starting updateProfileImageService with body: ${JSON.stringify(body)}`
+    );
+
+    const { userId } = body;
+
+    if (!userId) {
+      return buildResponse(
+        403,
+        "userId is required"
+      );
+    }
+
+    if (!file) {
+      return buildResponse(
+        403,
+        "profile image is required"
+      );
+    }
+
+    const user = await User.findOne({
+      _id: userId,
+      status: 1,
+    });
+
+    if (!user) {
+      return buildResponse(
+        404,
+        "User not found"
+      );
+    }
+
+    const profileUrl = await uploadFile(
+      file,
+      "users"
+    );
+
+    user.profileUrl = profileUrl;
+    user.updatedAt = new Date();
+
+    await user.save();
+
+    logger.info(
+      `Profile image updated successfully for userId: ${userId}`
+    );
+
+    return buildResponse(
+      200,
+      "Profile image updated successfully",
+      {
+        id: user._id,
+        name: user.name,
+        profileUrl: user.profileUrl,
+      }
+    );
+  } catch (error) {
+    logger.error(
+      `updateProfileImageService error: ${error.message}`,
+      error
+    );
+
+    return buildResponse(
+      500,
+      "Something went wrong"
+    );
+  }
+}
 
 async function requestOtp( mobileNumber) {
   logger.info(`requestOtp for ${mobileNumber}`);
@@ -917,4 +986,5 @@ module.exports = {
   verifyFamilyOtp,
   registerFamilyMember,
   verifyUserRegistration,
+  updateProfileImageService
 };
