@@ -161,6 +161,35 @@ async function createPostService(body, files, loggedInUserId) {
 
 /* ───────────────── EDIT POST ───────────────── */
 
+
+
+function parseRemoveMediaUrls(removeMediaUrls) {
+  if (!removeMediaUrls) return [];
+
+  if (Array.isArray(removeMediaUrls)) {
+    return removeMediaUrls;
+  }
+
+  if (typeof removeMediaUrls === "string") {
+    try {
+      const parsed = JSON.parse(removeMediaUrls);
+
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+
+      return [parsed];
+    } catch (error) {
+      return removeMediaUrls
+        .split(",")
+        .map((url) => url.trim())
+        .filter(Boolean);
+    }
+  }
+
+  return [];
+}
+
 async function editPostService(body, files, loggedInUserId) {
   try {
     logger.info(
@@ -224,10 +253,12 @@ async function editPostService(body, files, loggedInUserId) {
 
     let currentMediaUrls = post.mediaUrls || [];
 
-    if (removeMediaUrls) {
-      const urlsToRemove = Array.isArray(removeMediaUrls)
-        ? removeMediaUrls
-        : JSON.parse(removeMediaUrls);
+    const urlsToRemove = parseRemoveMediaUrls(removeMediaUrls);
+
+    if (urlsToRemove.length > 0) {
+      logger.info(
+        `Removing media urls: ${JSON.stringify(urlsToRemove)}`
+      );
 
       currentMediaUrls = currentMediaUrls.filter(
         (url) => !urlsToRemove.includes(url)
@@ -235,6 +266,8 @@ async function editPostService(body, files, loggedInUserId) {
     }
 
     if (files && files.length > 0) {
+      logger.info(`Uploading new media files: ${files.length}`);
+
       for (const file of files) {
         const uploadedUrl = await uploadFile(file, "posts");
 
@@ -245,7 +278,7 @@ async function editPostService(body, files, loggedInUserId) {
     }
 
     post.mediaUrls = currentMediaUrls;
-   
+
     await post.save();
 
     logger.info(`Post updated successfully: ${postId}`);
