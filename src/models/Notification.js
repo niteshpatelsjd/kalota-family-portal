@@ -23,16 +23,16 @@ const NotificationSchema = new mongoose.Schema(
 
     type: {
       type: String,
-      enum: [
-        "GENERAL",
-        "FAMILY",
-        "REGISTRATION",
-        "DHARAMSHALA",
-        "DONATION",
-        "BOOKING",
-        "PAYMENT",
-        "SYSTEM",
-      ],
+      // enum: [
+      //   "GENERAL",
+      //   "FAMILY",
+      //   "REGISTRATION",
+      //   "DHARAMSHALA",
+      //   "DONATION",
+      //   "BOOKING",
+      //   "PAYMENT",
+      //   "SYSTEM",
+      // ],
       default: "GENERAL",
     },
 
