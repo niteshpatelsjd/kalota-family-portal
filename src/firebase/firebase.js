@@ -1,13 +1,30 @@
-const { initializeApp, cert, getApps } = require("firebase-admin/app");
-const { getMessaging } = require("firebase-admin/messaging");
+const {
+  initializeApp,
+  cert,
+  getApps,
+} = require("firebase-admin/app");
 
-const serviceAccount = require("./kalota-family-portal-firebase-adminsdk-fbsvc-a3ae5c582b.json");
+const {
+  getMessaging,
+} = require("firebase-admin/messaging");
 
 let app;
 
 if (!getApps().length) {
   app = initializeApp({
-    credential: cert(serviceAccount),
+    credential: cert({
+      projectId:
+        process.env.FIREBASE_PROJECT_ID,
+
+      clientEmail:
+        process.env.FIREBASE_CLIENT_EMAIL,
+
+      privateKey:
+        process.env.FIREBASE_PRIVATE_KEY?.replace(
+          /\\n/g,
+          "\n"
+        ),
+    }),
   });
 } else {
   app = getApps()[0];
