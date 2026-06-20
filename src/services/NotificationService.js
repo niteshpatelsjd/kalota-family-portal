@@ -62,6 +62,12 @@ async function createNotificationService(body) {
 
 async function sendNotificationToUserService(body) {
   try {
+    logger.info(
+      `sendNotificationToUserService started: ${JSON.stringify(
+        body
+      )}`
+    );
+
     const {
       userId,
       title,
@@ -72,15 +78,30 @@ async function sendNotificationToUserService(body) {
     } = body;
 
     if (!userId) {
-      return buildResponse(DataConstant.BAD_REQUEST, "userId is required");
+      logger.warn(
+        "sendNotificationToUserService: userId is required"
+      );
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "userId is required"
+      );
     }
 
     if (!title || !message) {
+      logger.warn(
+        "sendNotificationToUserService: title and message are required"
+      );
+
       return buildResponse(
         DataConstant.BAD_REQUEST,
         "title and message are required"
       );
     }
+
+    logger.info(
+      `Fetching active devices for user: ${userId}`
+    );
 
     const devices = await UserDevice.find({
       userId,
@@ -88,19 +109,55 @@ async function sendNotificationToUserService(body) {
       deviceToken: { $ne: null },
     });
 
-    const notification = await Notification.create({
-      userId,
-      title,
-      message,
-      type,
-      data,
-      imageUrl,
-      sentStatus: "PENDING",
-    });
+    logger.info(
+      `Devices found: ${devices.length}`
+    );
+
+    if (devices.length > 0) {
+      logger.info(
+        `Device details: ${JSON.stringify(
+          devices.map((d) => ({
+            id: d._id,
+            deviceType: d.deviceType,
+            deviceId: d.deviceId,
+            token:
+              d.deviceToken?.substring(
+                0,
+                40
+              ) + "...",
+          }))
+        )}`
+      );
+    }
+
+    logger.info(
+      `Creating notification record for user ${userId}`
+    );
+
+    const notification =
+      await Notification.create({
+        userId,
+        title,
+        message,
+        type,
+        data,
+        imageUrl,
+        sentStatus: "PENDING",
+      });
+
+    logger.info(
+      `Notification created successfully: ${notification._id}`
+    );
 
     if (!devices.length) {
+      logger.warn(
+        `No active devices found for user ${userId}`
+      );
+
       notification.sentStatus = "FAILED";
-      notification.failureReason = "No active device token found";
+      notification.failureReason =
+        "No active device token found";
+
       await notification.save();
 
       return buildResponse(
@@ -110,41 +167,111 @@ async function sendNotificationToUserService(body) {
       );
     }
 
-    const tokens = devices.map((d) => d.deviceToken);
+    const tokens = devices.map(
+      (d) => d.deviceToken
+    );
+
+    logger.info(
+      `Preparing FCM payload for ${tokens.length} devices`
+    );
 
     const payload = {
       notification: {
         title,
         body: message,
       },
+
       data: {
-        notificationId: notification._id.toString(),
+        notificationId:
+          notification._id.toString(),
         type,
         ...convertDataToString(data),
       },
+
       tokens,
     };
 
     if (imageUrl) {
-      payload.notification.imageUrl = imageUrl;
+      payload.notification.imageUrl =
+        imageUrl;
     }
 
+    logger.info(
+      `Sending notification to Firebase`
+    );
+
+    logger.info(
+      `Payload: ${JSON.stringify({
+        title,
+        message,
+        type,
+        tokenCount: tokens.length,
+      })}`
+    );
+
     const firebaseResponse =
-      await firebaseAdmin.messaging().sendEachForMulticast(payload);
+      await firebaseAdmin.messaging.sendEachForMulticast(
+        payload
+      );
+
+    logger.info(
+      `Firebase response received`
+    );
+
+    logger.info(
+      `Success Count: ${firebaseResponse.successCount}`
+    );
+
+    logger.info(
+      `Failure Count: ${firebaseResponse.failureCount}`
+    );
+
+    if (
+      firebaseResponse.responses &&
+      firebaseResponse.responses.length
+    ) {
+      firebaseResponse.responses.forEach(
+        (response, index) => {
+          if (!response.success) {
+            logger.error(
+              `FCM Failed for device ${index}: ${
+                response.error?.message
+              }`
+            );
+          }
+        }
+      );
+    }
 
     notification.sentStatus =
-      firebaseResponse.successCount > 0 ? "SENT" : "FAILED";
+      firebaseResponse.successCount > 0
+        ? "SENT"
+        : "FAILED";
 
-    notification.firebaseMessageId = JSON.stringify({
-      successCount: firebaseResponse.successCount,
-      failureCount: firebaseResponse.failureCount,
-    });
+    notification.firebaseMessageId =
+      JSON.stringify({
+        successCount:
+          firebaseResponse.successCount,
+        failureCount:
+          firebaseResponse.failureCount,
+      });
 
-    if (firebaseResponse.failureCount > 0) {
-      notification.failureReason = "Some devices failed";
+    if (
+      firebaseResponse.failureCount > 0
+    ) {
+      notification.failureReason =
+        "Some devices failed";
     }
 
     await notification.save();
+
+    logger.info(
+      `Notification updated with status: ${notification.sentStatus}`
+    );
+
+    logger.info(
+      `sendNotificationToUserService completed successfully`
+    );
 
     return buildResponse(
       DataConstant.SUCCESS,
@@ -152,13 +279,19 @@ async function sendNotificationToUserService(body) {
       {
         notification,
         firebaseResponse: {
-          successCount: firebaseResponse.successCount,
-          failureCount: firebaseResponse.failureCount,
+          successCount:
+            firebaseResponse.successCount,
+          failureCount:
+            firebaseResponse.failureCount,
         },
       }
     );
   } catch (error) {
-    logger.error(`sendNotificationToUserService error: ${error.message}`);
+    logger.error(
+      `sendNotificationToUserService error: ${error.message}`,
+      error
+    );
+
     return buildResponse(
       DataConstant.INTERNAL_SERVER_ERROR,
       "Failed to send notification"
