@@ -175,21 +175,53 @@ async function sendNotificationToUserService(body) {
       `Preparing FCM payload for ${tokens.length} devices`
     );
 
-    const payload = {
-      notification: {
-        title,
-        body: message,
-      },
+const payload = {
+  notification: {
+    title,
+    body: message,
+  },
 
-      data: {
-        notificationId:
-          notification._id.toString(),
-        type,
-        ...convertDataToString(data),
-      },
+  data: {
+    notificationId: notification._id.toString(),
+    type,
+    ...convertDataToString(data),
+  },
 
-      tokens,
-    };
+  android: {
+    priority: "high",
+    notification: {
+      channelId: "default",
+      sound: "default",
+      priority: "high",
+      defaultSound: true,
+    },
+  },
+
+  apns: {
+    headers: {
+      "apns-priority": "10",
+    },
+    payload: {
+      aps: {
+        sound: "default",
+        badge: 1,
+        contentAvailable: true,
+      },
+    },
+  },
+
+  tokens,
+};
+
+if (imageUrl) {
+  payload.notification.imageUrl = imageUrl;
+
+  payload.android.notification.imageUrl = imageUrl;
+
+  payload.apns.fcmOptions = {
+    imageUrl,
+  };
+}
 
     if (imageUrl) {
       payload.notification.imageUrl =
