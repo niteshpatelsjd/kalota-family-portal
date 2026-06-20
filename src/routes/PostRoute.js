@@ -13,6 +13,8 @@ const {
   getComments,
   viewPost,
   sharePost,
+  editPost,
+  deletePost
 } = require("../controllers/PostController");
 
 /**
@@ -71,6 +73,93 @@ router.post(
   "/createPost",
   upload.array("media", 10),
   createPost
+);
+
+
+/**
+ * @swagger
+ * /admin/post/editPost:
+ *   put:
+ *     summary: Edit post or event
+ *     tags: [Post]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - postId
+ *             properties:
+ *               postId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd9
+ *               userId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd1
+ *               title:
+ *                 type: string
+ *                 example: Updated Post Title
+ *               description:
+ *                 type: string
+ *                 example: Updated post description
+ *               type:
+ *                 type: string
+ *                 enum: [POST, EVENT]
+ *                 example: POST
+ *               eventDate:
+ *                 type: string
+ *                 example: 20-06-2026 18:30:00
+ *               dharamshalaId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd9
+ *               removeMediaUrls:
+ *                 type: string
+ *                 example: ["http://localhost:7000/uploads/posts/old.jpg"]
+ *               media:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *     responses:
+ *       200:
+ *         description: Post updated successfully
+ */
+router.put(
+  "/editPost",
+  upload.array("media", 10),
+  editPost
+);
+
+
+/**
+ * @swagger
+ * /admin/post/deletePost:
+ *   delete:
+ *     summary: Delete post softly
+ *     tags: [Post]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - postId
+ *             properties:
+ *               postId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd9
+ *               userId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd1
+ *     responses:
+ *       200:
+ *         description: Post deleted successfully
+ */
+router.delete(
+  "/deletePost",
+  deletePost
 );
 
 /**

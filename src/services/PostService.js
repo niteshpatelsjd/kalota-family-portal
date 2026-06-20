@@ -154,6 +154,167 @@ async function createPostService(body, files, loggedInUserId) {
   }
 }
 
+/* ───────────────── EDIT POST ───────────────── */
+
+async function editPostService(body, files, loggedInUserId) {
+  try {
+    logger.info(
+      `Starting editPostService with body: ${JSON.stringify(body)}`
+    );
+
+    const {
+      postId,
+      title,
+      description,
+      type,
+      eventDate,
+      dharamshalaId,
+      removeMediaUrls,
+    } = body;
+
+    if (!postId) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "postId is required"
+      );
+    }
+
+    const post = await Post.findOne({
+      _id: postId,
+      status: 1,
+    });
+
+    if (!post) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
+        "Post not found"
+      );
+    }
+
+    if (title !== undefined) {
+      post.title = title;
+    }
+
+    if (description !== undefined) {
+      post.description = description;
+    }
+
+    if (type !== undefined) {
+      post.type = type;
+    }
+
+    if (type === "EVENT") {
+      post.eventDate = eventDate
+        ? parseEventDate(eventDate)
+        : post.eventDate;
+    }
+
+    if (type === "POST") {
+      post.eventDate = null;
+    }
+
+    if (dharamshalaId !== undefined) {
+      post.dharamshalaId = dharamshalaId || null;
+    }
+
+    let currentMediaUrls = post.mediaUrls || [];
+
+    if (removeMediaUrls) {
+      const urlsToRemove = Array.isArray(removeMediaUrls)
+        ? removeMediaUrls
+        : JSON.parse(removeMediaUrls);
+
+      currentMediaUrls = currentMediaUrls.filter(
+        (url) => !urlsToRemove.includes(url)
+      );
+    }
+
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const uploadedUrl = await uploadFile(file, "posts");
+
+        if (uploadedUrl) {
+          currentMediaUrls.push(uploadedUrl);
+        }
+      }
+    }
+
+    post.mediaUrls = currentMediaUrls;
+   
+    await post.save();
+
+    logger.info(`Post updated successfully: ${postId}`);
+
+    return buildResponse(
+      DataConstant.SUCCESS.OK,
+      "Post updated successfully",
+      post
+    );
+  } catch (error) {
+    logger.error(
+      `editPostService error: ${error.message}`,
+      error
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
+      "Something went wrong"
+    );
+  }
+}
+
+/* ───────────────── DELETE POST ───────────────── */
+
+async function deletePostService(body, loggedInUserId) {
+  try {
+    logger.info(
+      `Starting deletePostService with body: ${JSON.stringify(body)}`
+    );
+
+    const { postId } = body;
+
+    if (!postId) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "postId is required"
+      );
+    }
+
+    const post = await Post.findOne({
+      _id: postId,
+      status: 1,
+    });
+
+    if (!post) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
+        "Post not found"
+      );
+    }
+
+    post.status = 0;
+    
+    await post.save();
+
+    logger.info(`Post deleted successfully: ${postId}`);
+
+    return buildResponse(
+      DataConstant.SUCCESS.OK,
+      "Post deleted successfully"
+    );
+  } catch (error) {
+    logger.error(
+      `deletePostService error: ${error.message}`,
+      error
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
+      "Something went wrong"
+    );
+  }
+}
+
 /* ───────────────── GET FEED ───────────────── */
 
 async function getFeedService(query) {
@@ -396,12 +557,22 @@ async function addCommentService(body, loggedInUserId) {
 
 async function getCommentsService(query) {
   try {
+    logger.info(
+      `Starting getCommentsService with query: ${JSON.stringify(
+        query
+      )}`
+    );
+
     const { postId } = query;
 
     const limit = Number(query.limit) || 20;
     const cursor = query.cursor;
 
     if (!postId) {
+      logger.warn(
+        "getCommentsService: postId is required"
+      );
+
       return buildResponse(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "postId is required"
@@ -420,45 +591,85 @@ async function getCommentsService(query) {
       };
     }
 
+    logger.info(
+      `Comment filter: ${JSON.stringify(filter)}`
+    );
+
     const comments = await PostComment.find(filter)
       .sort({ createdAt: -1 })
       .limit(limit + 1)
       .populate({
         path: "userId",
         select:
-          "name profileUrl villageName districtName",
+          "name profileUrl districtId villageId",
+        populate: [
+          {
+            path: "districtId",
+            select: "name",
+          },
+          {
+            path: "villageId",
+            select: "name",
+          },
+        ],
       })
       .lean();
 
-    const hasNextPage = comments.length > limit;
+    logger.info(
+      `Total comments fetched from DB: ${comments.length}`
+    );
+
+    const hasNextPage =
+      comments.length > limit;
 
     const finalComments = hasNextPage
       ? comments.slice(0, limit)
       : comments;
 
-    const content = finalComments.map((item) => ({
-      id: item._id,
-      comment: item.comment,
-      userResponse: item.userId
-        ? {
-            id: item.userId._id,
-            name: item.userId.name,
-            profileUrl:
-              item.userId.profileUrl || null,
-            villageName:
-              item.userId.villageName || "",
-            districtName:
-              item.userId.districtName || "",
-          }
-        : null,
-      createdAt: formatDate(item.createdAt),
-    }));
+    logger.info(
+      `Final comments count after pagination: ${finalComments.length}`
+    );
+
+    const content = finalComments.map(
+      (item) => ({
+        id: item._id,
+        comment: item.comment,
+
+        userResponse: item.userId
+          ? {
+              id: item.userId._id,
+              name: item.userId.name,
+              profileUrl:
+                item.userId.profileUrl || null,
+              villageName:
+                item.userId.villageId?.name ||
+                "",
+              districtName:
+                item.userId.districtId?.name ||
+                "",
+            }
+          : null,
+
+        createdAt: formatDate(
+          item.createdAt
+        ),
+      })
+    );
+
+    logger.info(
+      `Mapped comments count: ${content.length}`
+    );
 
     const nextCursor =
       finalComments.length > 0
-        ? finalComments[finalComments.length - 1]
-            .createdAt
+        ? finalComments[
+            finalComments.length - 1
+          ].createdAt
         : null;
+
+    logger.info(
+      `Next Cursor: ${nextCursor}`
+    );
 
     return buildResponse(
       DataConstant.SUCCESS.OK,
@@ -470,7 +681,10 @@ async function getCommentsService(query) {
       }
     );
   } catch (error) {
-    logger.error("getCommentsService error", error);
+    logger.error(
+      `getCommentsService error: ${error.message}`,
+      error
+    );
 
     return buildResponse(
       DataConstant.SERVER_ERROR.SERVER_ERROR,
@@ -571,4 +785,6 @@ module.exports = {
   getCommentsService,
   viewPostService,
   sharePostService,
+  editPostService,
+  deletePostService,
 };

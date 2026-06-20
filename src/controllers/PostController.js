@@ -1,5 +1,7 @@
 const {
   createPostService,
+  editPostService,
+  deletePostService,
   getFeedService,
   likeUnlikePostService,
   addCommentService,
@@ -17,6 +19,39 @@ async function createPost(req, res) {
   const response = await createPostService(
     req.body,
     req.files,
+    userId
+  );
+
+  return res
+    .status(response.responseCode || 200)
+    .json(response);
+}
+
+async function editPost(req, res) {
+  const userId =
+    req.user?._id ||
+    req.user?.id ||
+    req.body.userId;
+
+  const response = await editPostService(
+    req.body,
+    req.files,
+    userId
+  );
+
+  return res
+    .status(response.responseCode || 200)
+    .json(response);
+}
+
+async function deletePost(req, res) {
+  const userId =
+    req.user?._id ||
+    req.user?.id ||
+    req.body.userId;
+
+  const response = await deletePostService(
+    req.body,
     userId
   );
 
@@ -105,4 +140,6 @@ module.exports = {
   getComments,
   viewPost,
   sharePost,
+  editPost,
+  deletePost,
 };
