@@ -166,7 +166,7 @@ router.delete(
  * @swagger
  * /admin/post/getFeed:
  *   get:
- *     summary: Get post feed with cursor pagination
+ *     summary: Get public post feed with cursor pagination
  *     tags: [Post]
  *     parameters:
  *       - in: query
@@ -175,7 +175,15 @@ router.delete(
  *         schema:
  *           type: string
  *         example: 6853ac3e6c6f4e00123abcd1
- *         description: Filter posts created by a specific user
+ *         description: Logged-in user id. Used only for isLiked calculation.
+ *
+ *       - in: query
+ *         name: targetUserId
+ *         required: false
+ *         schema:
+ *           type: string
+ *         example: 6853ac3e6c6f4e00123abcd2
+ *         description: Optional profile user id. Use this only when fetching a specific user's posts.
  *
  *       - in: query
  *         name: dharamshalaId
@@ -183,7 +191,7 @@ router.delete(
  *         schema:
  *           type: string
  *         example: 6853ac3e6c6f4e00123abcd9
- *         description: Filter posts of a specific dharamshala
+ *         description: Optional dharamshala id to filter posts.
  *
  *       - in: query
  *         name: limit
@@ -199,7 +207,7 @@ router.delete(
  *         schema:
  *           type: string
  *         example: 2026-06-19T10:30:00.000Z
- *         description: Cursor returned from previous API call
+ *         description: Cursor returned from previous API call.
  *
  *     responses:
  *       200:

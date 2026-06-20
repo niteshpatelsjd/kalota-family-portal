@@ -330,10 +330,14 @@ async function getFeedService(query) {
       status: 1,
     };
 
-    const loggedInUserId = query.userId;
+    // viewer userId only for isLiked check
+    const loggedInUserId = query.userId || null;
 
-    if (query.userId) {
-      filter.userId = query.userId;
+    // targetUserId only for profile feed filter
+    const targetUserId = query.targetUserId || null;
+
+    if (targetUserId) {
+      filter.userId = targetUserId;
     }
 
     if (query.dharamshalaId) {
@@ -400,7 +404,7 @@ async function getFeedService(query) {
     });
 
     const nextCursor =
-      content.length > 0
+      finalPosts.length > 0
         ? finalPosts[finalPosts.length - 1].createdAt
         : null;
 
