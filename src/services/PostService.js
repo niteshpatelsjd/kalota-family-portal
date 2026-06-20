@@ -9,6 +9,11 @@ const DataConstant = require("../constants/DataConstant");
 const logger = require("../utils/logger");
 const { uploadFile } = require("../utils/FileUtil");
 
+const User = require("../models/User");
+
+const {
+  sendNotificationToUserService,
+} = require("./NotificationService");
 /* ───────────────── HELPERS ───────────────── */
 
 function parseEventDate(dateStr) {
@@ -422,6 +427,11 @@ async function getFeedService(query) {
 async function likeUnlikePostService(body, loggedInUserId) {
   const session = await mongoose.startSession();
 
+  let shouldSendNotification = false;
+  let postOwnerId = null;
+  let postTitle = "";
+  let likerName = "Someone";
+
   try {
     session.startTransaction();
 
@@ -433,6 +443,28 @@ async function likeUnlikePostService(body, loggedInUserId) {
         "postId is required"
       );
     }
+
+    if (!loggedInUserId) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "userId is required"
+      );
+    }
+
+    const post = await Post.findOne({
+      _id: postId,
+      status: 1,
+    }).session(session);
+
+    if (!post) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
+        "Post not found"
+      );
+    }
+
+    postOwnerId = post.userId;
+    postTitle = post.title;
 
     const existingLike = await PostLike.findOne({
       postId,
@@ -463,6 +495,7 @@ async function likeUnlikePostService(body, loggedInUserId) {
       );
 
       isLiked = true;
+      shouldSendNotification = true;
     } else {
       await PostLike.create(
         [
@@ -481,9 +514,46 @@ async function likeUnlikePostService(body, loggedInUserId) {
       );
 
       isLiked = true;
+      shouldSendNotification = true;
     }
 
     await session.commitTransaction();
+
+    if (
+      shouldSendNotification &&
+      postOwnerId &&
+      postOwnerId.toString() !== loggedInUserId.toString()
+    ) {
+      try {
+        const liker = await User.findById(loggedInUserId).select(
+          "name firstName lastName"
+        );
+
+        if (liker) {
+          likerName =
+            liker.name ||
+            `${liker.firstName || ""} ${liker.lastName || ""}`.trim() ||
+            "Someone";
+        }
+
+        await sendNotificationToUserService({
+          userId: postOwnerId,
+          title: "New like on your post",
+          message: `${likerName} liked your post`,
+          type: "LIKE",
+          data: {
+            postId: postId.toString(),
+            likedBy: loggedInUserId.toString(),
+            postTitle: postTitle || "",
+          },
+        });
+      } catch (notificationErr) {
+        logger.error(
+          `Like notification failed: ${notificationErr.message}`,
+          notificationErr
+        );
+      }
+    }
 
     return buildResponse(
       DataConstant.SUCCESS.OK,
