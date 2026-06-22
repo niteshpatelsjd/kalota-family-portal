@@ -904,7 +904,7 @@ async function getProfileByIds(ids) {
 
 
 
-async function getAllUsers({ pageIndex = 0, pageSize = 10, status, searchText = "" }) {
+async function getAllUsers({ pageIndex = 0, pageSize = 10, status, searchText = "", verificationStatus = "" }) {
   try {
     let query = {  };
 
@@ -941,6 +941,9 @@ async function getAllUsers({ pageIndex = 0, pageSize = 10, status, searchText = 
         { mobileNumber: { $regex: searchText, $options: "i" } },
       ];
     }
+    if (verificationStatus && verificationStatus.trim() !== "") {
+      query.verificationStatus = verificationStatus;
+    }
 
     const skip = pageIndex * pageSize;
     const users = await userRepo.findAllUsers(query, skip, pageSize);
@@ -951,6 +954,21 @@ async function getAllUsers({ pageIndex = 0, pageSize = 10, status, searchText = 
 
     const inactiveQuery = { status: 2, profileCompleted: true }
     const totalInActive  = await User.countDocuments(inactiveQuery);
+
+    const totalPending =
+  await User.countDocuments({
+    verificationStatus: "PENDING",
+  });
+
+    const totalApproved =
+      await User.countDocuments({
+        verificationStatus: "APPROVED",
+      });
+
+    const totalRejected =
+      await User.countDocuments({
+        verificationStatus: "REJECTED",
+      });
     if (!users || users.length === 0) {
       return buildResponse(404, "Records not found", null);
     }
@@ -965,7 +983,10 @@ async function getAllUsers({ pageIndex = 0, pageSize = 10, status, searchText = 
       hasNext: pageIndex + 1 < total,
       hasPrevious: pageIndex > 0,
       totalActive,
-      totalInActive
+      totalInActive,
+      totalPending,
+      totalApproved,
+      totalRejected,
 
     });
   } catch (error) {

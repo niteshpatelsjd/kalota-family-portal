@@ -211,6 +211,7 @@ exports.getAllUsers = async (req, res) => {
       pageSize = 10,
       status,
       searchText,
+      verificationStatus,
     } = req.query || req.body || {};
 
     // Parse numeric values safely
@@ -226,6 +227,7 @@ exports.getAllUsers = async (req, res) => {
       pageSize: parsedPageSize,
       status,
       searchText: trimmedSearchText,
+      verificationStatus
     });
 
     return res.status(200).json(result);

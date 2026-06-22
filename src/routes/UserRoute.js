@@ -264,6 +264,10 @@ router.post(
  *         name: searchText
  *         schema:
  *           type: string
+ *       - in: query
+ *         name: verificationStatus
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
  *         description: Users fetched successfully
