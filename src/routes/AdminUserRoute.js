@@ -10,7 +10,25 @@ const ctrl = require("../controllers/AdminUserController");
 const jwtUtil = require("../utils/JwtUtil");
 const multer = require("multer");
 // Multer setup (memory storage so we can pass buffer to fileUtil)
-const storage = multer.memoryStorage();
+
+const storage =
+  multer.diskStorage({
+    destination:
+      "./uploads",
+
+    filename: (
+      req,
+      file,
+      cb
+    ) => {
+      cb(
+        null,
+        Date.now() +
+          "-" +
+          file.originalname
+      );
+    },
+  });
 const upload = multer({ storage });
 
 /**

@@ -8,6 +8,10 @@ const buildResponse = require("../utils/response");
 const DataConstant = require("../constants/DataConstant");
 const logger = require("../utils/logger");
 const { uploadFile } = require("../utils/FileUtil");
+const uploadToCloudinary =
+  require(
+    "../utils/CloudnaryUploadUtil"
+  );
 
 const User = require("../models/User");
 
@@ -123,11 +127,19 @@ async function createPostService(body, files, loggedInUserId) {
 
     if (files && files.length > 0) {
       for (const file of files) {
-        const uploadedUrl = await uploadFile(file, "posts");
+        // const uploadedUrl = await uploadFile(file, "posts");
+        // if (uploadedUrl) {
+        //   mediaUrls.push(uploadedUrl);
+        // }
+        const uploaded =
+            await uploadToCloudinary(
+              file.path,
+              "kalota/posts"
+            );
 
-        if (uploadedUrl) {
-          mediaUrls.push(uploadedUrl);
-        }
+          if (uploaded?.url) {
+            mediaUrls.push(uploaded.url);
+          }
       }
     }
 
@@ -269,11 +281,15 @@ async function editPostService(body, files, loggedInUserId) {
       logger.info(`Uploading new media files: ${files.length}`);
 
       for (const file of files) {
-        const uploadedUrl = await uploadFile(file, "posts");
+        const uploaded =
+                await uploadToCloudinary(
+                  file.path,
+                  "kalota/posts"
+                );
 
-        if (uploadedUrl) {
-          currentMediaUrls.push(uploadedUrl);
-        }
+              if (uploaded?.url) {
+                currentMediaUrls.push(uploaded.url);
+              }
       }
     }
 

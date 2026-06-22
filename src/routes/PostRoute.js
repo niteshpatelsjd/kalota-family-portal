@@ -1,8 +1,31 @@
 const express = require("express");
 const router = express.Router();
 
-const multer = require("multer");
-const storage = multer.memoryStorage();
+// const multer = require("multer");
+// const storage = multer.memoryStorage();
+// const upload = multer({ storage });
+
+const multer =
+  require("multer");
+
+const storage =
+  multer.diskStorage({
+    destination:
+      "./uploads",
+
+    filename: (
+      req,
+      file,
+      cb
+    ) => {
+      cb(
+        null,
+        Date.now() +
+          "-" +
+          file.originalname
+      );
+    },
+  });
 const upload = multer({ storage });
 
 const {

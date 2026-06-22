@@ -6,7 +6,25 @@ const router = express.Router();
 const userController = require("../controllers/UserController");
 
 const multer = require("multer");
-const storage = multer.memoryStorage();
+
+const storage =
+  multer.diskStorage({
+    destination:
+      "./uploads",
+
+    filename: (
+      req,
+      file,
+      cb
+    ) => {
+      cb(
+        null,
+        Date.now() +
+          "-" +
+          file.originalname
+      );
+    },
+  });
 const upload = multer({ storage });
 
 /**

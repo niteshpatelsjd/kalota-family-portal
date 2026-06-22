@@ -3,6 +3,10 @@ const userDeviceRepo = require("../repositories/UserDeviceRepository");
 const redis = require("../config/RedisConfig");
 const jwtUtil = require("../utils/JwtUtil");
 const { uploadFile } = require("../utils/FileUtil");
+const uploadToCloudinary =
+  require(
+    "../utils/CloudnaryUploadUtil"
+  );
 const buildResponse = require("../utils/response");
 const userResponse = require("../response/UserResponse");
 const logger = require("../utils/logger");
@@ -23,9 +27,16 @@ async function updateProfile(id, updates, file) {
 
     let profileUrl;
 
-    if (file) {
-      try {
-        profileUrl = await uploadFile(file);
+        if (file) {
+          try {
+            const uploaded =
+                await uploadToCloudinary(
+                  file.path,
+                  "kalota/profiles"
+                );
+
+              profileUrl =
+                uploaded?.url || null;
         logger.info(`📸 Uploaded media file: ${profileUrl}`);
       } catch (err) {
         logger.error("❌ Failed to upload media file", {
@@ -118,10 +129,18 @@ async function updateProfileImageService(body, file) {
       );
     }
 
-    const profileUrl = await uploadFile(
-      file,
-      "users"
-    );
+        let profileUrl = null;
+
+        if (file) {
+          const uploaded =
+            await uploadToCloudinary(
+              file.path,
+              "kalota/profiles"
+            );
+
+          profileUrl =
+            uploaded?.url || null;
+        }
 
     user.profileUrl = profileUrl;
     user.updatedAt = new Date();
@@ -606,7 +625,14 @@ async function registerFamilyMember(
 
     if (file) {
       try {
-        profileUrl = await uploadFile(file);
+          const uploaded =
+            await uploadToCloudinary(
+              file.path,
+              "kalota/profiles"
+            );
+
+          profileUrl =
+            uploaded?.url || null;
         logger.info(`📸 Uploaded media file: ${profileUrl}`);
       } catch (err) {
         logger.error("❌ Failed to upload media file", {
