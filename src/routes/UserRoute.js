@@ -268,6 +268,10 @@ router.post(
  *         name: verificationStatus
  *         schema:
  *           type: string
+ *       - in: query
+ *         name: villageId
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
  *         description: Users fetched successfully

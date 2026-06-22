@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const userRepo = require("../repositories/UserRepository");
 const userDeviceRepo = require("../repositories/UserDeviceRepository");
 const redis = require("../config/RedisConfig");
@@ -904,61 +905,122 @@ async function getProfileByIds(ids) {
 
 
 
-async function getAllUsers({ pageIndex = 0, pageSize = 10, status, searchText = "", verificationStatus = "" }) {
+async function getAllUsers({
+  pageIndex = 0,
+  pageSize = 10,
+  status,
+  searchText = "",
+  verificationStatus = "",
+  villageId = "",
+}) {
   try {
-    let query = {  };
+    const query = {};
 
-    // Base status condition (default)
+    // Default status filter
     query.status = { $in: [1, 2] };
 
-    // If status is provided, handle it properly
-    if (status !== undefined && status !== null && status !== "") {
-      let parsedStatus;
-
-      // If multiple statuses are provided (e.g. "1,2,3")
-      if (typeof status === "string" && status.includes(",")) {
-        parsedStatus = status
+    // Status filter
+    if (
+      status !== undefined &&
+      status !== null &&
+      status !== ""
+    ) {
+      if (
+        typeof status === "string" &&
+        status.includes(",")
+      ) {
+        const parsedStatus = status
           .split(",")
-          .map(s => parseInt(s.trim(), 10))
-          .filter(s => !isNaN(s));
+          .map((s) => parseInt(s.trim(), 10))
+          .filter((s) => !isNaN(s));
+
         if (parsedStatus.length > 0) {
           query.status = { $in: parsedStatus };
         }
       } else {
-        // Single status value
         const singleStatus = parseInt(status, 10);
+
         if (!isNaN(singleStatus)) {
           query.status = singleStatus;
         }
       }
     }
 
-    // Optional search filter (for example: name or email)
+    // Verification status filter
+    if (
+      verificationStatus &&
+      verificationStatus.trim() !== ""
+    ) {
+      if (verificationStatus.includes(",")) {
+        query.verificationStatus = {
+          $in: verificationStatus
+            .split(",")
+            .map((s) => s.trim().toUpperCase())
+            .filter(Boolean),
+        };
+      } else {
+        query.verificationStatus =
+          verificationStatus.trim().toUpperCase();
+      }
+    }
+
+    // Village filter
+    if (villageId && villageId.trim() !== "") {
+      query.villageId = new mongoose.Types.ObjectId(
+        villageId.trim()
+      );
+    }
+
+    // Search filter
     if (searchText && searchText.trim() !== "") {
+      const searchRegex = {
+        $regex: searchText.trim(),
+        $options: "i",
+      };
+
       query.$or = [
-        { name: { $regex: searchText, $options: "i" } },
-        { email: { $regex: searchText, $options: "i" } },
-        { mobileNumber: { $regex: searchText, $options: "i" } },
+        { name: searchRegex },
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { email: searchRegex },
+        { mobileNumber: searchRegex },
+        { familyId: searchRegex },
       ];
     }
-    if (verificationStatus && verificationStatus.trim() !== "") {
-      query.verificationStatus = verificationStatus;
-    }
 
-    const skip = pageIndex * pageSize;
-    const users = await userRepo.findAllUsers(query, skip, pageSize);
-    const total = await userRepo.countDocuments(query);
+    const page = Number(pageIndex);
+    const limit = Number(pageSize);
+    const skip = page * limit;
 
-    const activeQuery = { status: 1, profileCompleted: true }
-    const totalActive  = await User.countDocuments(activeQuery);
+    const users =
+      await userRepo.findAllUsers(
+        query,
+        skip,
+        limit
+      );
 
-    const inactiveQuery = { status: 2, profileCompleted: true }
-    const totalInActive  = await User.countDocuments(inactiveQuery);
+    const total =
+      await userRepo.countDocuments(query);
+
+    const totalPages =
+      Math.ceil(total / limit);
+
+    const totalActive =
+      await User.countDocuments({
+        status: 1,
+        profileCompleted: true,
+      });
+
+    const totalInActive =
+      await User.countDocuments({
+        status: 2,
+        profileCompleted: true,
+      });
 
     const totalPending =
-  await User.countDocuments({
-    verificationStatus: "PENDING",
-  });
+      await User.countDocuments({
+        verificationStatus: "PENDING",
+      });
 
     const totalApproved =
       await User.countDocuments({
@@ -969,29 +1031,55 @@ async function getAllUsers({ pageIndex = 0, pageSize = 10, status, searchText = 
       await User.countDocuments({
         verificationStatus: "REJECTED",
       });
+
     if (!users || users.length === 0) {
-      return buildResponse(404, "Records not found", null);
+      return buildResponse(
+        404,
+        "Records not found",
+        null
+      );
     }
 
-    return buildResponse(200, "Records fetched successfully", {
-      content: users.map(userResponse.buildUserResponse),
-      pageIndex,
-      pageSize,
-      total,
-      totalPages: Math.ceil(total / pageSize),
-      isLast: pageIndex + 1 >= total,
-      hasNext: pageIndex + 1 < total,
-      hasPrevious: pageIndex > 0,
-      totalActive,
-      totalInActive,
-      totalPending,
-      totalApproved,
-      totalRejected,
+    return buildResponse(
+      200,
+      "Records fetched successfully",
+      {
+        content: users.map(
+          userResponse.buildUserResponse
+        ),
+        pageIndex: page,
+        pageSize: limit,
+        total,
+        totalPages,
+        isLast: page + 1 >= totalPages,
+        hasNext: page + 1 < totalPages,
+        hasPrevious: page > 0,
 
-    });
+        totalActive,
+        totalInActive,
+        totalPending,
+        totalApproved,
+        totalRejected,
+      }
+    );
   } catch (error) {
-    logger.error("getAllUsers service error", { error });
-    return buildResponse(500, "Internal server error", null);
+    logger.error(
+  "getAllUsers service error",
+  {
+    message: error.message,
+    stack: error.stack,
+    status,
+    verificationStatus,
+    villageId,
+    searchText,
+  }
+);
+
+    return buildResponse(
+      500,
+      "Internal server error",
+      null
+    );
   }
 }
 
