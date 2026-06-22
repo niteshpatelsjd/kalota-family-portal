@@ -827,20 +827,56 @@ async function blockUnblockUser(id, status, remark) {
 
 // 🟢 Get profile
 async function getProfile(id) {
-   
+
   logger.info(`getProfile: id=${id}`);
-  try{
-    const user = await userRepo.findById(id);
-    if(user){
-        return buildResponse(200, "Record found successfully", userResponse.buildUserResponse(user));
-    }else{
-      return buildResponse(404, "Record not found", null);
+
+  try {
+
+    const user =
+      await User.findById(id)
+        .populate(
+          "districtId",
+          "name"
+        )
+        .populate(
+          "tehsilId",
+          "name"
+        )
+        .populate(
+          "villageId",
+          "name"
+        );
+
+    if (!user) {
+
+      return buildResponse(
+        404,
+        "Record not found",
+        null
+      );
     }
-  }catch(error){
-    logger.error('Inter server error ',{error});
-    return buildResponse(500, "Server Error", null);
+
+    return buildResponse(
+      200,
+      "Record found successfully",
+      userResponse.buildUserResponse(
+        user
+      )
+    );
+
+  } catch (error) {
+
+    logger.error(
+      "Internal server error",
+      { error }
+    );
+
+    return buildResponse(
+      500,
+      "Server Error",
+      null
+    );
   }
-   
 }
 
 async function getProfileByIds(ids) {

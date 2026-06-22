@@ -24,6 +24,11 @@ const {
   uploadFile,
 } = require("../utils/FileUtil");
 
+const uploadToCloudinary =
+  require(
+    "../utils/CloudnaryUploadUtil"
+  );
+
 const DataConstant = {
   OK: 200,
 
@@ -340,18 +345,21 @@ async function createMemberProfileService(
     let profileImage =
       null;
 
-    if (file) {
+if (file) {
 
-      logger.info(
-        "Uploading profile image"
-      );
+  logger.info(
+    "Uploading profile image to Cloudinary"
+  );
 
-      profileImage =
-        await uploadFile(
-          file,
-          "family-profile"
-        );
-    }
+  const uploaded =
+    await uploadToCloudinary(
+      file.path,
+      "kalota/families"
+    );
+
+  profileImage =
+    uploaded?.url || null;
+}
 
     /*
      * Gender Logic
@@ -857,18 +865,21 @@ async function updateProfileService(
     let profileImage =
       existingPerson.profileImage;
 
-    if (file) {
+if (file) {
 
-      logger.info(
-        "Uploading updated profile image"
-      );
+  logger.info(
+    "Uploading updated profile image to Cloudinary"
+  );
 
-      profileImage =
-        await uploadFile(
-          file,
-          "family-profile"
-        );
-    }
+  const uploaded =
+    await uploadToCloudinary(
+      file.path,
+      "kalota/families"
+    );
+
+  profileImage =
+    uploaded?.url || null;
+}
 
     /*
      * Handle parentVillageId

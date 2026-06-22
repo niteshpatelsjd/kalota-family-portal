@@ -2,7 +2,7 @@ const adminUserRepo = require("../repositories/AdminUserRepository");
 const redis = require("../config/RedisConfig");
 const jwtUtil = require("../utils/JwtUtil");
 const logger = require("../utils/logger");
-const fileUtil = require("../utils/FileUtil");
+//const fileUtil = require("../utils/FileUtil");
 const buildResponse = require("../utils/response");
 const { buildUserResponse, buildUserRoleResponse } = require("../utils/ResponseBuilder");
 const AdminUser = require("../models/AdminUser");
@@ -13,7 +13,10 @@ const bcrypt = require("bcryptjs");
 const mailUtil = require("../utils/mailUtil");
 const crypto = require("crypto");
 const redisClient = require("../config/RedisConfig");
-
+const uploadToCloudinary =
+  require(
+    "../utils/CloudnaryUploadUtil"
+  );
 const DataConstant = {
   OK: 200,
   BAD_REQUEST: 400,
@@ -56,7 +59,13 @@ async function addAdmin(data) {
 
     if (data.imageFile) {
       try {
-        imageUrl = await fileUtil.uploadFile(data.imageFile, "user");
+        const uploaded =
+            await uploadToCloudinary(
+              data.imageFile.path,
+              "kalota/admin_user"
+            );
+
+          imageUrl = uploaded.url;
         logger.info(`📸 Uploaded profile image: ${imageUrl}`);
       } catch (err) {
         logger.error("❌ Failed to upload profile image", {

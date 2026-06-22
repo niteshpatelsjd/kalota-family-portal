@@ -1,49 +1,121 @@
 // utils/userResponse.js
 function buildUserResponse(user) {
+
   if (!user) return null;
 
   return {
+
     id: user._id,
 
     // Basic Details
-    name: user.name || "",
-    firstName: user.firstName || "",
-    lastName: user.lastName || "",
-    fatherFirstName: user.fatherFirstName || "",
-    motherFirstName: user.motherFirstName || "",
-    gender: user.gender || "",
-    dob: user.dob || "",
-    relationType: user.relationType || "",
+
+    name:
+      user.name || "",
+
+    firstName:
+      user.firstName || "",
+
+    lastName:
+      user.lastName || "",
+
+    fatherFirstName:
+      user.fatherFirstName || "",
+
+    motherFirstName:
+      user.motherFirstName || "",
+
+    gender:
+      user.gender || "",
+
+    dob:
+      user.dob || "",
+
+    relationType:
+      user.relationType || "",
 
     // Contact Details
-    email: user.email || "",
-    mobileNumber: user.mobileNumber || "",
+
+    email:
+      user.email || "",
+
+    mobileNumber:
+      user.mobileNumber || "",
 
     // Family Details
-    familyId: user.familyId || "",
-    familyHeadId: user.familyHeadId || "",
+
+    familyId:
+      user.familyId || "",
+
+    familyHeadId:
+      user.familyHeadId || "",
 
     // Location Details
-    districtId: user.districtId || "",
-    tehsilId: user.tehsilId || "",
-    villageId: user.villageId || "",
+
+    districtId:
+      user.districtId?._id ||
+      user.districtId ||
+      "",
+
+    districtName:
+      user.districtId?.name ||
+      "",
+
+    tehsilId:
+      user.tehsilId?._id ||
+      user.tehsilId ||
+      "",
+
+    tehsilName:
+      user.tehsilId?.name ||
+      "",
+
+    villageId:
+      user.villageId?._id ||
+      user.villageId ||
+      "",
+
+    villageName:
+      user.villageId?.name ||
+      "",
 
     // Profile
-    profileUrl: user.profileUrl || "",
-    descriptions: user.descriptions || "",
+
+    profileUrl:
+      user.profileUrl || "",
+
+    descriptions:
+      user.descriptions || "",
 
     // Status
-    status: user.status || 1,
-    profileCompleted: user.profileCompleted || false,
-    isVerified: user.isVerified || false,
-    verificationStatus: user.verificationStatus || "PENDING",
-    rejectedReason: user.rejectedReason || "",
 
-    // Audit Fields
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt
+    status:
+      user.status || 1,
+
+    profileCompleted:
+      user.profileCompleted ||
+      false,
+
+    isVerified:
+      user.isVerified ||
+      false,
+
+    verificationStatus:
+      user.verificationStatus ||
+      "PENDING",
+
+    rejectedReason:
+      user.rejectedReason || "",
+
+    // Audit
+
+    createdAt:
+      user.createdAt,
+
+    updatedAt:
+      user.updatedAt,
   };
 }
+
 
 function buildFullUserResponse(user, device = null) {
   if (!user) return null;

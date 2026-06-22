@@ -13,7 +13,10 @@ const logger =
 
 const fileUtil =
   require("../utils/FileUtil");
-
+const uploadToCloudinary =
+  require(
+    "../utils/CloudnaryUploadUtil"
+  );
 const buildResponse =
   require("../utils/response");
 
@@ -93,11 +96,16 @@ async function addDharamshala(data) {
 
     if (data.profileImageFile) {
       try {
-        profileImage =
-          await fileUtil.uploadFile(
-            data.profileImageFile,
-            "dharamshala"
-          );
+        if (data.profileImageFile) {
+  const uploaded =
+    await uploadToCloudinary(
+      data.profileImageFile.path,
+      "kalota/dharamshala"
+    );
+
+  profileImage =
+    uploaded.url;
+}
 
         logger.info(
           `Profile image uploaded ${profileImage}`
@@ -116,11 +124,16 @@ async function addDharamshala(data) {
 
     if (data.bannerImageFile) {
       try {
-        bannerImage =
-          await fileUtil.uploadFile(
-            data.bannerImageFile,
-            "dharamshala"
-          );
+        if (data.bannerImageFile) {
+  const uploaded =
+    await uploadToCloudinary(
+      data.bannerImageFile.path,
+      "kalota/dharamshala/banners"
+    );
+
+  bannerImage =
+    uploaded.url;
+}
 
         logger.info(
           `Banner image uploaded ${bannerImage}`

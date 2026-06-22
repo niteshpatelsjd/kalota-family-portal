@@ -7,7 +7,10 @@ const Person = require("../models/Person");
 
 const logger = require("../utils/logger");
 const buildResponse = require("../utils/response");
-
+const uploadToCloudinary =
+  require(
+    "../utils/CloudnaryUploadUtil"
+  );
 const {
   findDuplicateFamily,
   createFamily,
@@ -281,12 +284,16 @@ const duplicate =
       logger.info(
         "Uploading profile image"
       );
+        if (file) {
+          const uploaded =
+            await uploadToCloudinary(
+              file.path,
+              "kalota/family-profile"
+            );
 
-      profileImage =
-        await uploadFile(
-          file,
-          "family-profile"
-        );
+          profileImage =
+            uploaded.url;
+        }
 
       logger.info(
         "Profile image uploaded successfully"
@@ -690,13 +697,15 @@ async function updateFamilyHead(
       headPerson.profileImage || null;
 
     if (file) {
+  const uploaded =
+    await uploadToCloudinary(
+      file.path,
+      "kalota/families"
+    );
 
-      profileImage =
-        await uploadFile(
-          file,
-          "family-profile"
-        );
-    }
+  profileImage =
+    uploaded?.url || null;
+}
 
     /*
      * Update Person
