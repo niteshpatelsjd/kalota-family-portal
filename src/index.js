@@ -9,10 +9,7 @@ const connectDB = require("./config/DBConfig");
 const adminUserRoutes = require("./routes/AdminUserRoute");
 const moduleRoutes = require("./routes/ModuleRoute");
 const roleRoutes = require("./routes/RoleRoute");
-const locationRoutes = require("./routes/LocationRoute");
 const familyRoutes = require("./routes/FamilyRoute");
-const memberRoutes = require("./routes/MemberRoute");
-const memberAdminRoutes = require("./routes/MemberAdminRoute");
 const districtRoutes = require("./routes/DistrictRoute");
 const tehsilRoutes = require("./routes/TehsilRoute");
 const villageRoutes = require("./routes/VillageRoute");
@@ -22,6 +19,7 @@ const userRoutes = require("./routes/UserRoute");
 const financeRoutes = require("./routes/FinanceRoute");
 const postRoutes = require("./routes/PostRoute");
 const notificationRoutes = require("./routes/NotificationRoute");
+const donationRoutes = require("./routes/DonationRoute");
 
 const app = express();
 app.use(cors());
@@ -40,10 +38,7 @@ app.get("/admin/docs-json", (req, res) => {
 app.use("/admin/user", adminUserRoutes);
 app.use("/admin/module", moduleRoutes);
 app.use("/admin/role", roleRoutes);
-app.use("/admin/location", locationRoutes);
 app.use("/admin/family", familyRoutes);
-app.use("/admin/member", memberAdminRoutes);
-app.use("/member", memberRoutes);
 app.use("/admin/district", districtRoutes);
 app.use("/admin/tehsil", tehsilRoutes);
 app.use("/admin/village", villageRoutes);
@@ -53,6 +48,7 @@ app.use("/admin/finance", financeRoutes);
 app.use("/admin/mobile/user", userRoutes);
 app.use("/admin/post", postRoutes);
 app.use("/admin/notification", notificationRoutes);
+app.use("/admin/donation", donationRoutes);
 
 app.get("/health", (_, res) => res.json({ status: "up" }));
 

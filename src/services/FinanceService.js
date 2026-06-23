@@ -15,6 +15,9 @@ const DharamshalaVoucher =
 const DharamshalaLedger =
   require("../models/DharamshalaLedger");
 
+const DharamshalaDonation =
+  require("../models/DharamshalaDonation");
+
 const buildResponse =
   require("../utils/response");
 
@@ -27,6 +30,15 @@ const FinanceConstant =
   const DataConstant =
   require("../constants/DataConstant");
 
+
+async function generateReceiptNumber() {
+  const count = await DharamshalaDonation.countDocuments();
+
+  return `DR-${new Date().getFullYear()}-${String(count + 1).padStart(
+    5,
+    "0"
+  )}`;
+}
 
 async function generateLedgerNumber() {
   const count =

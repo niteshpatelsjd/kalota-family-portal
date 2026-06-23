@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-
 const DharamshalaDonationSchema =
   new mongoose.Schema(
     {
@@ -9,67 +8,65 @@ const DharamshalaDonationSchema =
         required: true,
       },
 
-      voucherId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "dharamshala_voucher",
-        required: true,
-      },
-
-      voucherNumber: {
+      receiptNumber: {
         type: String,
-        required: true,
-      },
-
-      donationNumber: {
-        type: String,
-        required: true,
         unique: true,
       },
 
-      donorName: {
+      donorType: {
         type: String,
+        enum: [
+          "REGISTERED_MEMBER",
+          "EXTERNAL_DONOR",
+        ],
         required: true,
-        trim: true,
       },
 
-      mobileNumber: {
+      donorUserId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "user",
+        default: null,
+      },
+
+      externalDonorName: {
         type: String,
         default: "",
       },
 
-      email: {
+      externalMobileNumber: {
         type: String,
         default: "",
       },
 
-      address: {
+      externalAddress: {
         type: String,
         default: "",
-      },
-
-      donationDate: {
-        type: Date,
-        default: Date.now,
       },
 
       donationType: {
         type: String,
-        enum: [
-          "GENERAL",
-          "ANNADAN",
-          "BUILDING",
-          "RENOVATION",
-          "EVENT",
-          "CORPUS",
-          "OTHER",
-        ],
-        default: "GENERAL",
+        enum: ["MONEY", "ITEM"],
+        required: true,
       },
 
       amount: {
         type: Number,
+        default: 0,
+      },
+
+      itemName: {
+        type: String,
+        default: "",
+      },
+
+      quantity: {
+        type: Number,
+        default: 0,
+      },
+
+      purpose: {
+        type: String,
         required: true,
-        min: 0,
       },
 
       paymentMode: {
@@ -77,43 +74,52 @@ const DharamshalaDonationSchema =
         enum: [
           "CASH",
           "UPI",
-          "BANK_TRANSFER",
           "CHEQUE",
-          "OTHER",
+          "NEFT",
         ],
         required: true,
       },
 
-      referenceNumber: {
+      transactionReference: {
         type: String,
         default: "",
       },
 
-      receivedBy: {
+      collectedBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "dharamshala_committee",
+        ref: "admin_user",
+        required: false,
+      },
+      familyId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "family",
+        required: false,
+      },
+
+      voucherId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "dharamshala_voucher",
         default: null,
       },
 
-      bankAccountId: {
+      ledgerId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "dharamshala_bank_account",
+        ref: "dharamshala_ledger",
         default: null,
       },
 
-      depositedAmount: {
-        type: Number,
-        default: 0,
+      depositStatus: {
+        type: String,
+        enum: [
+          "PENDING",
+          "DEPOSITED",
+        ],
+        default: "PENDING",
       },
 
-      pendingAmount: {
-        type: Number,
-        default: 0,
-      },
-
-      depositDate: {
+      donationDate: {
         type: Date,
-        default: null,
+        default: Date.now,
       },
 
       remarks: {
@@ -121,42 +127,26 @@ const DharamshalaDonationSchema =
         default: "",
       },
 
-      attachments: [
-        {
-          fileUrl: String,
-          fileName: String,
-        },
-      ],
-
       status: {
-        type: String,
-        enum: [
-          "RECEIVED",
-          "PENDING_DEPOSIT",
-          "PARTIALLY_DEPOSITED",
-          "DEPOSITED",
-          "CANCELLED",
-        ],
-        default: "RECEIVED",
+        type: Number,
+        enum: [0, 1, 2],
+        default: 1,
       },
 
       createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "admin_user",
-        required: true,
+        default: null,
       },
 
-      statusFlag: {
-        type: Number,
-        default: 1,
+      updatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "admin_user",
+        default: null,
       },
     },
     {
       timestamps: true,
     }
   );
-
-module.exports = mongoose.model(
-  "dharamshala_donation",
-  DharamshalaDonationSchema
-);
+  module.exports = mongoose.model("dharamshala_donation", DharamshalaDonationSchema);
