@@ -7,6 +7,8 @@ const {
   getAllDonations,
   getDonationById,
   cancelDonation,
+  depositCashDonation,
+  verifyItemDonation,
 } = require("../controllers/DonationController");
 
 const router = express.Router();
@@ -18,11 +20,13 @@ const router = express.Router();
  *   description: Dharamshala donation management APIs
  */
 
+
 /**
  * @swagger
  * /admin/donation/create:
  *   post:
  *     summary: Create donation
+ *     description: Creates donation record and voucher. Ledger is created only for confirmed ONLINE money donation. Committee cash/UPI/cheque/NEFT donations stay pending until deposit API is called.
  *     tags: [Donation]
  *     requestBody:
  *       required: true
@@ -31,12 +35,11 @@ const router = express.Router();
  *           schema:
  *             type: object
  *             required:
- *               - userId
  *               - dharamshalaId
  *               - donorType
+ *               - donationSource
  *               - donationType
  *               - purpose
- *               - paymentMode
  *             properties:
  *               userId:
  *                 type: string
@@ -47,7 +50,7 @@ const router = express.Router();
  *               donorType:
  *                 type: string
  *                 enum: [REGISTERED_MEMBER, EXTERNAL_DONOR]
- *                 example: "EXTERNAL_DONOR"
+ *                 example: "REGISTERED_MEMBER"
  *               donorUserId:
  *                 type: string
  *                 example: "USER_ID"
@@ -60,25 +63,32 @@ const router = express.Router();
  *               externalAddress:
  *                 type: string
  *                 example: "Indore, Madhya Pradesh"
+ *               familyId:
+ *                 type: string
+ *                 example: "FAMILY_ID"
+ *               donationSource:
+ *                 type: string
+ *                 enum: [ONLINE, COMMITTEE_COLLECTION, DIRECT_OFFICE]
+ *                 example: "COMMITTEE_COLLECTION"
  *               donationType:
  *                 type: string
  *                 enum: [MONEY, ITEM]
  *                 example: "MONEY"
  *               amount:
  *                 type: number
- *                 example: 1100
+ *                 example: 2100
  *               itemName:
  *                 type: string
  *                 example: "Fan"
  *               quantity:
  *                 type: number
- *                 example: 2
+ *                 example: 10
  *               purpose:
  *                 type: string
  *                 example: "Dharamshala Maintenance"
  *               paymentMode:
  *                 type: string
- *                 enum: [CASH, UPI, CHEQUE, NEFT]
+ *                 enum: [CASH, UPI, CHEQUE, NEFT, ONLINE, NA]
  *                 example: "CASH"
  *               transactionReference:
  *                 type: string
@@ -86,12 +96,49 @@ const router = express.Router();
  *               collectedBy:
  *                 type: string
  *                 example: "ADMIN_USER_ID"
- *               familyId:
- *                 type: string
- *                 example: "FAMILY_ID"
  *               remarks:
  *                 type: string
- *                 example: "Cash donation collected by committee member"
+ *                 example: "Cash collected by committee member"
+ *           examples:
+ *             committeeCashDonation:
+ *               summary: Committee cash donation
+ *               value:
+ *                 dharamshalaId: "DHARAMSHALA_ID"
+ *                 donorType: "REGISTERED_MEMBER"
+ *                 donorUserId: "USER_ID"
+ *                 donationSource: "COMMITTEE_COLLECTION"
+ *                 donationType: "MONEY"
+ *                 amount: 2100
+ *                 purpose: "Dharamshala Maintenance"
+ *                 paymentMode: "CASH"
+ *                 collectedBy: "ADMIN_USER_ID"
+ *                 remarks: "Cash collected by committee member"
+ *             onlineDonation:
+ *               summary: Online money donation
+ *               value:
+ *                 dharamshalaId: "DHARAMSHALA_ID"
+ *                 donorType: "REGISTERED_MEMBER"
+ *                 donorUserId: "USER_ID"
+ *                 donationSource: "ONLINE"
+ *                 donationType: "MONEY"
+ *                 amount: 1100
+ *                 purpose: "Dharamshala Maintenance"
+ *                 paymentMode: "ONLINE"
+ *                 transactionReference: "PAYMENT_GATEWAY_REF_123"
+ *             itemDonation:
+ *               summary: Item donation
+ *               value:
+ *                 dharamshalaId: "DHARAMSHALA_ID"
+ *                 donorType: "REGISTERED_MEMBER"
+ *                 donorUserId: "USER_ID"
+ *                 donationSource: "COMMITTEE_COLLECTION"
+ *                 donationType: "ITEM"
+ *                 itemName: "Fan"
+ *                 quantity: 10
+ *                 purpose: "Room Facility"
+ *                 paymentMode: "NA"
+ *                 collectedBy: "ADMIN_USER_ID"
+ *                 remarks: "Fan promised by donor"
  *     responses:
  *       200:
  *         description: Donation created successfully
@@ -100,7 +147,10 @@ const router = express.Router();
  *       500:
  *         description: Failed to create donation
  */
-router.post("/create", createDonation);
+router.post(
+  "/create",
+  createDonation
+);
 
 /**
  * @swagger
@@ -129,6 +179,15 @@ router.post("/create", createDonation);
  *           type: string
  *           enum: [REGISTERED_MEMBER, EXTERNAL_DONOR]
  *       - in: query
+ *         name: donorUserId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: donationSource
+ *         schema:
+ *           type: string
+ *           enum: [ONLINE, COMMITTEE_COLLECTION, DIRECT_OFFICE]
+ *       - in: query
  *         name: donationType
  *         schema:
  *           type: string
@@ -137,12 +196,34 @@ router.post("/create", createDonation);
  *         name: paymentMode
  *         schema:
  *           type: string
- *           enum: [CASH, UPI, CHEQUE, NEFT]
+ *           enum: [CASH, UPI, CHEQUE, NEFT, ONLINE, NA]
+ *       - in: query
+ *         name: collectionStatus
+ *         schema:
+ *           type: string
+ *           enum: [NOT_REQUIRED, NOT_COLLECTED, COLLECTED, CANCELLED]
  *       - in: query
  *         name: depositStatus
  *         schema:
  *           type: string
- *           enum: [PENDING, DEPOSITED]
+ *           enum: [NOT_REQUIRED, PENDING, DEPOSITED, CANCELLED]
+ *       - in: query
+ *         name: itemStatus
+ *         schema:
+ *           type: string
+ *           enum: [NOT_REQUIRED, PENDING_VERIFICATION, RECEIVED, PARTIALLY_RECEIVED, NOT_RECEIVED, CANCELLED]
+ *       - in: query
+ *         name: collectedBy
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: verifiedBy
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: familyId
+ *         schema:
+ *           type: string
  *       - in: query
  *         name: status
  *         schema:
@@ -154,10 +235,6 @@ router.post("/create", createDonation);
  *         schema:
  *           type: string
  *           example: "Ramesh"
- *       - in: query
- *         name: donorUserId
- *         schema:
- *           type: string
  *     responses:
  *       200:
  *         description: Records fetched successfully
@@ -229,4 +306,110 @@ router.get("/getById/:id", getDonationById);
  */
 router.post("/cancel/:id", cancelDonation);
 
+/**
+ * @swagger
+ * /admin/donation/depositCash:
+ *   post:
+ *     summary: Deposit pending cash donation
+ *     description: Deposit a pending money donation collected by committee member. This will automatically create ledger entry and update bank account balance.
+ *     tags: [Donation]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - donationId
+ *               - bankAccountId
+ *             properties:
+ *               donationId:
+ *                 type: string
+ *                 example: "676abc1234567890abcd1111"
+ *               bankAccountId:
+ *                 type: string
+ *                 example: "676abc1234567890abcd2222"
+ *               referenceNumber:
+ *                 type: string
+ *                 example: "SBI-CASH-DEP-2026-001"
+ *               bankReceiptUrl:
+ *                 type: string
+ *                 example: "https://res.cloudinary.com/demo/image/upload/receipt.jpg"
+ *               remarks:
+ *                 type: string
+ *                 example: "Cash deposited to SBI bank account"
+ *               updatedBy:
+ *                 type: string
+ *                 description: Optional admin user id. If not provided, it will be taken from auth token.
+ *                 example: "676abc1234567890abcd3333"
+ *     responses:
+ *       200:
+ *         description: Donation deposited and ledger created successfully
+ *       400:
+ *         description: Invalid request or donation already deposited/cancelled
+ *       404:
+ *         description: Donation or bank account not found
+ *       500:
+ *         description: Failed to deposit donation
+ */
+router.post(
+  "/depositCash",
+  depositCashDonation
+);
+
+/**
+ * @swagger
+ * /admin/donation/verifyItem:
+ *   post:
+ *     summary: Verify item donation
+ *     description: Verify item donation such as Fan, Bulb, Cooler, Cement etc. Supports received, partially received, not received and cancelled status.
+ *     tags: [Donation]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - donationId
+ *               - itemStatus
+ *             properties:
+ *               donationId:
+ *                 type: string
+ *                 example: "676abc1234567890abcd1111"
+ *               itemStatus:
+ *                 type: string
+ *                 enum:
+ *                   - RECEIVED
+ *                   - PARTIALLY_RECEIVED
+ *                   - NOT_RECEIVED
+ *                   - CANCELLED
+ *                 example: "PARTIALLY_RECEIVED"
+ *               receivedQuantity:
+ *                 type: number
+ *                 example: 6
+ *               notReceivedReason:
+ *                 type: string
+ *                 example: "Donor promised 10 fans but did not submit any item"
+ *               remarks:
+ *                 type: string
+ *                 example: "Only 6 fans received by Dharamshala office"
+ *               updatedBy:
+ *                 type: string
+ *                 description: Optional admin user id. If not provided, it will be taken from auth token.
+ *                 example: "676abc1234567890abcd3333"
+ *     responses:
+ *       200:
+ *         description: Item donation verified successfully
+ *       400:
+ *         description: Invalid request or item donation already verified
+ *       404:
+ *         description: Donation not found
+ *       500:
+ *         description: Failed to verify item donation
+ */
+router.post(
+  "/verifyItem",
+  verifyItemDonation
+);
 module.exports = router;
