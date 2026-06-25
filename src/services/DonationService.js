@@ -45,27 +45,40 @@ async function createDonation(body, userId) {
       transactionReference,
       collectedBy,
       familyId,
+      bankAccountId,
       remarks,
     } = body;
 
     if (!dharamshalaId) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "dharamshalaId is required");
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "dharamshalaId is required"
+      );
     }
 
     if (!donorType) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "donorType is required");
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "donorType is required"
+      );
     }
 
     if (!["REGISTERED_MEMBER", "EXTERNAL_DONOR"].includes(donorType)) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Invalid donorType");
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Invalid donorType"
+      );
     }
 
     if (donorType === "REGISTERED_MEMBER" && !donorUserId) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "donorUserId is required");
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "donorUserId is required"
+      );
     }
 
     if (donorType === "EXTERNAL_DONOR" && !externalDonorName) {
@@ -76,27 +89,46 @@ async function createDonation(body, userId) {
       );
     }
 
-    if (!["ONLINE", "COMMITTEE_COLLECTION", "DIRECT_OFFICE"].includes(donationSource)) {
+    if (
+      !["ONLINE", "COMMITTEE_COLLECTION", "DIRECT_OFFICE"].includes(
+        donationSource
+      )
+    ) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Invalid donationSource");
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Invalid donationSource"
+      );
     }
 
     if (!donationType) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "donationType is required");
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "donationType is required"
+      );
     }
 
     if (!["MONEY", "ITEM"].includes(donationType)) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Invalid donationType");
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Invalid donationType"
+      );
     }
 
     if (donationType === "MONEY" && (!amount || Number(amount) <= 0)) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "amount is required");
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "amount is required"
+      );
     }
 
-    if (donationType === "ITEM" && (!itemName || !quantity || Number(quantity) <= 0)) {
+    if (
+      donationType === "ITEM" &&
+      (!itemName || !quantity || Number(quantity) <= 0)
+    ) {
       await session.abortTransaction();
       return buildResponse(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
@@ -106,19 +138,21 @@ async function createDonation(body, userId) {
 
     if (!purpose) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "purpose is required");
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "purpose is required"
+      );
     }
 
     if (donationType === "MONEY" && !paymentMode) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "paymentMode is required");
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "paymentMode is required"
+      );
     }
 
-    if (
-      donationType === "ITEM" &&
-      paymentMode &&
-      paymentMode !== "NA"
-    ) {
+    if (donationType === "ITEM" && paymentMode && paymentMode !== "NA") {
       await session.abortTransaction();
       return buildResponse(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
@@ -137,6 +171,14 @@ async function createDonation(body, userId) {
 
     const isItemDonation = donationType === "ITEM";
 
+    if (isOnlineMoney && !bankAccountId) {
+      await session.abortTransaction();
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "bankAccountId is required for online donation"
+      );
+    }
+
     const finalPaymentMode = isItemDonation ? "NA" : paymentMode;
 
     const collectionStatus = isOnlineMoney
@@ -151,12 +193,30 @@ async function createDonation(body, userId) {
         ? "PENDING"
         : "NOT_REQUIRED";
 
-    const itemStatus = isItemDonation
-      ? "PENDING_VERIFICATION"
-      : "NOT_REQUIRED";
+    const itemStatus = isItemDonation ? "PENDING_VERIFICATION" : "NOT_REQUIRED";
 
     const receiptNumber = await generateReceiptNumber();
     const voucherNumber = await generateVoucherNumber();
+
+    let bankAccount = null;
+    let newBalance = 0;
+
+    if (isOnlineMoney) {
+      bankAccount = await DharamshalaBankAccount.findById(bankAccountId).session(
+        session
+      );
+
+      if (!bankAccount) {
+        await session.abortTransaction();
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.NOT_FOUND,
+          "Bank account not found"
+        );
+      }
+
+      newBalance =
+        Number(bankAccount.currentBalance || 0) + Number(amount || 0);
+    }
 
     const donationResult = await DharamshalaDonation.create(
       [
@@ -193,6 +253,8 @@ async function createDonation(body, userId) {
           depositStatus,
           itemStatus,
 
+          bankAccountId: isOnlineMoney ? bankAccountId : null,
+
           remarks: remarks || "",
           createdBy: userId || null,
         },
@@ -227,30 +289,37 @@ async function createDonation(body, userId) {
 
     let ledger = null;
 
-    /**
-     * IMPORTANT:
-     * Ledger should be created here only for confirmed ONLINE payment.
-     * For committee/direct office cash/upi/cheque/neft, ledger should be created
-     * later from depositCash API after bank deposit proof.
-     */
     if (isOnlineMoney) {
+      const donationAmount = Number(amount || 0);
       const ledgerNumber = await generateLedgerNumber();
 
       const ledgerResult = await DharamshalaLedger.create(
         [
           {
             dharamshalaId,
+            bankAccountId,
             voucherId: voucher._id,
+
             voucherNumber: voucher.voucherNumber,
             ledgerNumber,
+
             transactionType: "CREDIT",
             category: "DONATION",
-            amount: Number(amount),
+
+            amount: donationAmount,
+            creditAmount: donationAmount,
+            debitAmount: 0,
+            runningBalance: newBalance,
+
             transactionDate: new Date(),
             description: `Online donation received - ${receiptNumber}`,
             referenceNumber: transactionReference || receiptNumber,
+
             fromAccountType: "MEMBER",
+            fromAccountId: donorUserId || null,
             toAccountType: "BANK",
+            toAccountId: bankAccountId,
+
             createdBy: userId || null,
           },
         ],
@@ -258,6 +327,9 @@ async function createDonation(body, userId) {
       );
 
       ledger = ledgerResult[0];
+
+      bankAccount.currentBalance = newBalance;
+      await bankAccount.save({ session });
     }
 
     savedDonation.voucherId = voucher._id;
@@ -547,54 +619,60 @@ async function depositCashDonation(body, file) {
       bankReceiptUrl = uploaded?.url || "";
     }
 
-const voucher = await DharamshalaVoucher.findById(
-  donation.voucherId
-).session(session);
+    const voucher = await DharamshalaVoucher.findById(
+      donation.voucherId
+    ).session(session);
 
-if (!voucher) {
-  await session.abortTransaction();
-  return buildResponse(
-    DataConstant.CLIENT_ERROR.NOT_FOUND,
-    "Voucher not found"
-  );
-}
+    if (!voucher) {
+      await session.abortTransaction();
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
+        "Voucher not found"
+      );
+    }
 
-const ledgerNumber = await generateLedgerNumber();
+    const donationAmount = Number(donation.amount || 0);
+    const currentBalance = Number(bankAccount.currentBalance || 0);
+    const newBalance = currentBalance + donationAmount;
 
-const ledger = await DharamshalaLedger.create(
-  [
-    {
-      dharamshalaId: donation.dharamshalaId,
-      bankAccountId,
-      voucherId: donation.voucherId,
+    const ledgerNumber = await generateLedgerNumber();
 
-      voucherNumber: voucher.voucherNumber,
-      ledgerNumber,
+    const ledger = await DharamshalaLedger.create(
+      [
+        {
+          dharamshalaId: donation.dharamshalaId,
+          bankAccountId,
+          voucherId: donation.voucherId,
 
-      transactionType: "CREDIT",
-      category: "DONATION",
-      amount: donation.amount,
-      transactionDate: new Date(),
-      description: `Donation Deposit - ${donation.receiptNumber}`,
-      committeeMemberId: donation.collectedBy,
-      referenceNumber,
-      fromAccountType: "MEMBER",
-      toAccountType: "BANK",
-      createdBy: updatedBy,
-    },
-  ],
-  { session }
-);
+          voucherNumber: voucher.voucherNumber,
+          ledgerNumber,
 
-    await DharamshalaBankAccount.findByIdAndUpdate(
-      bankAccountId,
-      {
-        $inc: {
-          currentBalance: donation.amount,
+          transactionType: "CREDIT",
+          category: "DONATION",
+
+          amount: donationAmount,
+          creditAmount: donationAmount,
+          debitAmount: 0,
+          runningBalance: newBalance,
+
+          transactionDate: new Date(),
+          description: `Donation Deposit - ${donation.receiptNumber}`,
+          committeeMemberId: donation.collectedBy,
+          referenceNumber,
+
+          fromAccountType: "MEMBER",
+          fromAccountId: donation.donorUserId || null,
+          toAccountType: "BANK",
+          toAccountId: bankAccountId,
+
+          createdBy: updatedBy,
         },
-      },
+      ],
       { session }
     );
+
+    bankAccount.currentBalance = newBalance;
+    await bankAccount.save({ session });
 
     donation.depositStatus = "DEPOSITED";
     donation.bankAccountId = bankAccountId;
@@ -609,10 +687,14 @@ const ledger = await DharamshalaLedger.create(
 
     await session.commitTransaction();
 
-    return buildResponse(DataConstant.SUCCESS.OK, "Donation deposited successfully", {
-      donation,
-      ledger: ledger[0],
-    });
+    return buildResponse(
+      DataConstant.SUCCESS.OK,
+      "Donation deposited successfully",
+      {
+        donation,
+        ledger: ledger[0],
+      }
+    );
   } catch (error) {
     await session.abortTransaction();
 
