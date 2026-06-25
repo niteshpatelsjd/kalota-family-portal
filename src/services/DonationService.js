@@ -547,26 +547,44 @@ async function depositCashDonation(body, file) {
       bankReceiptUrl = uploaded?.url || "";
     }
 
-    const ledger = await DharamshalaLedger.create(
-      [
-        {
-          dharamshalaId: donation.dharamshalaId,
-          bankAccountId,
-          voucherId: donation.voucherId,
-          transactionType: "CREDIT",
-          category: "DONATION",
-          amount: donation.amount,
-          transactionDate: new Date(),
-          description: `Donation Deposit - ${donation.receiptNumber}`,
-          committeeMemberId: donation.collectedBy,
-          referenceNumber,
-          fromAccountType: "MEMBER",
-          toAccountType: "BANK",
-          createdBy: updatedBy,
-        },
-      ],
-      { session }
-    );
+const voucher = await DharamshalaVoucher.findById(
+  donation.voucherId
+).session(session);
+
+if (!voucher) {
+  await session.abortTransaction();
+  return buildResponse(
+    DataConstant.CLIENT_ERROR.NOT_FOUND,
+    "Voucher not found"
+  );
+}
+
+const ledgerNumber = await generateLedgerNumber();
+
+const ledger = await DharamshalaLedger.create(
+  [
+    {
+      dharamshalaId: donation.dharamshalaId,
+      bankAccountId,
+      voucherId: donation.voucherId,
+
+      voucherNumber: voucher.voucherNumber,
+      ledgerNumber,
+
+      transactionType: "CREDIT",
+      category: "DONATION",
+      amount: donation.amount,
+      transactionDate: new Date(),
+      description: `Donation Deposit - ${donation.receiptNumber}`,
+      committeeMemberId: donation.collectedBy,
+      referenceNumber,
+      fromAccountType: "MEMBER",
+      toAccountType: "BANK",
+      createdBy: updatedBy,
+    },
+  ],
+  { session }
+);
 
     await DharamshalaBankAccount.findByIdAndUpdate(
       bankAccountId,
