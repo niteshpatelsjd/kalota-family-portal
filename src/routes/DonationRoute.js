@@ -270,24 +270,22 @@ router.get("/getById/:id", getDonationById);
 
 /**
  * @swagger
- * /admin/donation/cancel/{id}:
+ * /admin/donation/cancel:
  *   post:
  *     summary: Cancel donation
  *     tags: [Donation]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         example: "DONATION_ID"
  *     requestBody:
- *       required: false
+ *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - donationId
  *             properties:
+ *               donationId:
+ *                 type: string
+ *                 example: "DONATION_ID"
  *               userId:
  *                 type: string
  *                 example: "ADMIN_USER_ID"
@@ -298,14 +296,13 @@ router.get("/getById/:id", getDonationById);
  *       200:
  *         description: Donation cancelled successfully
  *       400:
- *         description: id is required
+ *         description: donationId is required
  *       404:
  *         description: Donation not found
  *       500:
  *         description: Failed to cancel donation
  */
-router.post("/cancel/:id", cancelDonation);
-
+router.post("/cancel", cancelDonation);
 /**
  * @swagger
  * /admin/donation/depositCash:

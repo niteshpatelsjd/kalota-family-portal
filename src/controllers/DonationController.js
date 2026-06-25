@@ -75,20 +75,10 @@ exports.getDonationById = async (req, res) => {
   }
 };
 
-exports.cancelDonation = async (
-  req,
-  res
-) => {
-  const response =
-    await cancelDonationService(
-      req.params.id,
-      req.body,
-      req.body.userId
-    );
+exports.cancelDonation = async (req, res) => {
+  const response = await cancelDonationService(req.body);
 
-  return res
-    .status(200)
-    .json(response);
+  return res.status(200).json(response);
 };
 
 exports.depositCashDonation = async (

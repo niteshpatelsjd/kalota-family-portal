@@ -423,13 +423,18 @@ async function getDonationById(id) {
   }
 }
 
-async function cancelDonation(id, body, userId) {
+async function cancelDonation(body) {
+  const {
+    donationId,
+    userId,
+    remarks,
+  } = body;
   try {
-    if (!id) {
-      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "id is required");
+    if (!donationId) {
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "donationId is required");
     }
 
-    const donation = await DharamshalaDonation.findById(id);
+    const donation = await DharamshalaDonation.findById(donationId);
 
     if (!donation) {
       return buildResponse(DataConstant.CLIENT_ERROR.NOT_FOUND, "Donation not found");
