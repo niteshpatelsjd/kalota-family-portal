@@ -45,68 +45,68 @@ async function createDonation(body, userId) {
 
     if (!dharamshalaId) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.BAD_REQUEST, "dharamshalaId is required");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "dharamshalaId is required");
     }
 
     if (!donorType) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.BAD_REQUEST, "donorType is required");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "donorType is required");
     }
 
     if (!["REGISTERED_MEMBER", "EXTERNAL_DONOR"].includes(donorType)) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.BAD_REQUEST, "Invalid donorType");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Invalid donorType");
     }
 
     if (donorType === "REGISTERED_MEMBER" && !donorUserId) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.BAD_REQUEST, "donorUserId is required");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "donorUserId is required");
     }
 
     if (donorType === "EXTERNAL_DONOR" && !externalDonorName) {
       await session.abortTransaction();
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "externalDonorName is required"
       );
     }
 
     if (!["ONLINE", "COMMITTEE_COLLECTION", "DIRECT_OFFICE"].includes(donationSource)) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.BAD_REQUEST, "Invalid donationSource");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Invalid donationSource");
     }
 
     if (!donationType) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.BAD_REQUEST, "donationType is required");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "donationType is required");
     }
 
     if (!["MONEY", "ITEM"].includes(donationType)) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.BAD_REQUEST, "Invalid donationType");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Invalid donationType");
     }
 
     if (donationType === "MONEY" && (!amount || Number(amount) <= 0)) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.BAD_REQUEST, "amount is required");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "amount is required");
     }
 
     if (donationType === "ITEM" && (!itemName || !quantity || Number(quantity) <= 0)) {
       await session.abortTransaction();
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "itemName and quantity are required"
       );
     }
 
     if (!purpose) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.BAD_REQUEST, "purpose is required");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "purpose is required");
     }
 
     if (donationType === "MONEY" && !paymentMode) {
       await session.abortTransaction();
-      return buildResponse(DataConstant.BAD_REQUEST, "paymentMode is required");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "paymentMode is required");
     }
 
     if (
@@ -116,7 +116,7 @@ async function createDonation(body, userId) {
     ) {
       await session.abortTransaction();
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "paymentMode must be NA for item donation"
       );
     }
@@ -278,7 +278,7 @@ async function createDonation(body, userId) {
     logger.error(`createDonation error: ${error.message}`);
 
     return buildResponse(
-      DataConstant.INTERNAL_SERVER_ERROR,
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
       "Failed to create donation"
     );
   } finally {
@@ -379,7 +379,7 @@ async function getAllDonations(query) {
     logger.error(`getAllDonations error: ${error.message}`);
 
     return buildResponse(
-      DataConstant.INTERNAL_SERVER_ERROR,
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
       "Failed to fetch donations"
     );
   }
@@ -388,7 +388,7 @@ async function getAllDonations(query) {
 async function getDonationById(id) {
   try {
     if (!id) {
-      return buildResponse(DataConstant.BAD_REQUEST, "id is required");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "id is required");
     }
 
     const donation = await DharamshalaDonation.findById(id)
@@ -405,7 +405,7 @@ async function getDonationById(id) {
       .populate("ledgerId");
 
     if (!donation) {
-      return buildResponse(DataConstant.NOT_FOUND, "Donation not found");
+      return buildResponse(DataConstant.CLIENT_ERROR.NOT_FOUND, "Donation not found");
     }
 
     return buildResponse(
@@ -417,7 +417,7 @@ async function getDonationById(id) {
     logger.error(`getDonationById error: ${error.message}`);
 
     return buildResponse(
-      DataConstant.INTERNAL_SERVER_ERROR,
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
       "Failed to fetch donation"
     );
   }
@@ -426,13 +426,13 @@ async function getDonationById(id) {
 async function cancelDonation(id, body, userId) {
   try {
     if (!id) {
-      return buildResponse(DataConstant.BAD_REQUEST, "id is required");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "id is required");
     }
 
     const donation = await DharamshalaDonation.findById(id);
 
     if (!donation) {
-      return buildResponse(DataConstant.NOT_FOUND, "Donation not found");
+      return buildResponse(DataConstant.CLIENT_ERROR.NOT_FOUND, "Donation not found");
     }
 
     donation.status = 2;
@@ -450,7 +450,7 @@ async function cancelDonation(id, body, userId) {
     logger.error(`cancelDonation error: ${error.message}`);
 
     return buildResponse(
-      DataConstant.INTERNAL_SERVER_ERROR,
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
       "Failed to cancel donation"
     );
   }
@@ -473,14 +473,14 @@ async function depositCashDonation(body) {
 
     if (!donationId) {
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "donationId is required"
       );
     }
 
     if (!bankAccountId) {
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "bankAccountId is required"
       );
     }
@@ -494,7 +494,7 @@ async function depositCashDonation(body) {
       await session.abortTransaction();
 
       return buildResponse(
-        DataConstant.NOT_FOUND,
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
         "Donation not found"
       );
     }
@@ -506,7 +506,7 @@ async function depositCashDonation(body) {
       await session.abortTransaction();
 
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "Only money donation can be deposited"
       );
     }
@@ -518,7 +518,7 @@ async function depositCashDonation(body) {
       await session.abortTransaction();
 
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         `Donation already ${donation.depositStatus}`
       );
     }
@@ -532,7 +532,7 @@ async function depositCashDonation(body) {
       await session.abortTransaction();
 
       return buildResponse(
-        DataConstant.NOT_FOUND,
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
         "Bank account not found"
       );
     }
@@ -623,7 +623,7 @@ async function depositCashDonation(body) {
     await session.commitTransaction();
 
     return buildResponse(
-      DataConstant.SUCCESS,
+      DataConstant.SUCCESS.OK,
       "Donation deposited successfully",
       {
         donation,
@@ -638,7 +638,7 @@ async function depositCashDonation(body) {
     );
 
     return buildResponse(
-      DataConstant.INTERNAL_SERVER_ERROR,
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
       "Failed to deposit donation"
     );
   } finally {
@@ -658,11 +658,11 @@ async function verifyItemDonation(body) {
     } = body;
 
     if (!donationId) {
-      return buildResponse(DataConstant.BAD_REQUEST, "donationId is required");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "donationId is required");
     }
 
     if (!itemStatus) {
-      return buildResponse(DataConstant.BAD_REQUEST, "itemStatus is required");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "itemStatus is required");
     }
 
     const allowedStatuses = [
@@ -674,7 +674,7 @@ async function verifyItemDonation(body) {
 
     if (!allowedStatuses.includes(itemStatus)) {
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "Invalid itemStatus"
       );
     }
@@ -682,12 +682,12 @@ async function verifyItemDonation(body) {
     const donation = await DharamshalaDonation.findById(donationId);
 
     if (!donation) {
-      return buildResponse(DataConstant.NOT_FOUND, "Donation not found");
+      return buildResponse(DataConstant.CLIENT_ERROR.NOT_FOUND, "Donation not found");
     }
 
     if (donation.donationType !== "ITEM") {
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "Only item donation can be verified here"
       );
     }
@@ -697,7 +697,7 @@ async function verifyItemDonation(body) {
       donation.itemStatus !== "PENDING"
     ) {
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         `Item donation already ${donation.itemStatus}`
       );
     }
@@ -705,14 +705,14 @@ async function verifyItemDonation(body) {
     if (itemStatus === "RECEIVED") {
       if (!receivedQuantity || receivedQuantity <= 0) {
         return buildResponse(
-          DataConstant.BAD_REQUEST,
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
           "receivedQuantity is required"
         );
       }
 
       if (receivedQuantity !== donation.quantity) {
         return buildResponse(
-          DataConstant.BAD_REQUEST,
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
           "For RECEIVED, receivedQuantity must match donation quantity"
         );
       }
@@ -721,14 +721,14 @@ async function verifyItemDonation(body) {
     if (itemStatus === "PARTIALLY_RECEIVED") {
       if (!receivedQuantity || receivedQuantity <= 0) {
         return buildResponse(
-          DataConstant.BAD_REQUEST,
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
           "receivedQuantity is required"
         );
       }
 
       if (receivedQuantity >= donation.quantity) {
         return buildResponse(
-          DataConstant.BAD_REQUEST,
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
           "For PARTIALLY_RECEIVED, receivedQuantity must be less than donation quantity"
         );
       }
@@ -736,7 +736,7 @@ async function verifyItemDonation(body) {
 
     if (itemStatus === "NOT_RECEIVED" && !notReceivedReason) {
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "notReceivedReason is required"
       );
     }
@@ -765,7 +765,7 @@ async function verifyItemDonation(body) {
     await donation.save();
 
     return buildResponse(
-      DataConstant.SUCCESS,
+      DataConstant.SUCCESS.OK,
       "Item donation verified successfully",
       donation
     );
@@ -773,7 +773,7 @@ async function verifyItemDonation(body) {
     logger.error(`verifyItemDonation error: ${error.message}`);
 
     return buildResponse(
-      DataConstant.INTERNAL_SERVER_ERROR,
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
       "Failed to verify item donation"
     );
   }
