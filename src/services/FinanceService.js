@@ -1733,20 +1733,13 @@ exports.getBankBalance =
 
 exports.getFinanceDashboard =
   async (dharamshalaId) => {
-
     try {
-
       logger.info(
         "getFinanceDashboard service started",
         { dharamshalaId }
       );
 
       if (!dharamshalaId) {
-
-        logger.warn(
-          "getFinanceDashboard validation failed : dharamshalaId missing"
-        );
-
         return buildResponse(
           DataConstant.CLIENT_ERROR.BAD_REQUEST,
           "Dharamshala Id is required",
@@ -1755,20 +1748,13 @@ exports.getFinanceDashboard =
       }
 
       const objectId =
-        new mongoose.Types.ObjectId(
-          dharamshalaId
-        );
-
-      /* -----------------------------
-         TOTAL BANK BALANCE
-      ----------------------------- */
+        new mongoose.Types.ObjectId(dharamshalaId);
 
       const bankBalanceResult =
         await DharamshalaBankAccount.aggregate([
           {
             $match: {
-              dharamshalaId:
-                objectId,
+              dharamshalaId: objectId,
               status: 1,
             },
           },
@@ -1776,128 +1762,104 @@ exports.getFinanceDashboard =
             $group: {
               _id: null,
               totalBalance: {
-                $sum:
-                  "$currentBalance",
+                $sum: "$currentBalance",
               },
             },
           },
         ]);
 
       const bankBalance =
-        bankBalanceResult?.[0]
-          ?.totalBalance || 0;
-
-      /* -----------------------------
-         TOTAL DONATIONS
-      ----------------------------- */
+        bankBalanceResult?.[0]?.totalBalance || 0;
 
       const donationResult =
         await DharamshalaLedger.aggregate([
           {
             $match: {
-              dharamshalaId:
-                objectId,
-
-              category:
-                "DONATION",
-
-              transactionType:
-                "CREDIT",
-
-              status:
-                "SUCCESS",
+              dharamshalaId: objectId,
+              category: "DONATION",
+              transactionType: "CREDIT",
+              status: "SUCCESS",
+              statusFlag: 1,
             },
           },
           {
             $group: {
               _id: null,
               totalDonation: {
-                $sum:
-                  "$amount",
+                $sum: "$amount",
               },
             },
           },
         ]);
 
       const totalDonations =
-        donationResult?.[0]
-          ?.totalDonation || 0;
-/* -----------------------------
-   TOTAL EXPENSES
------------------------------ */
+        donationResult?.[0]?.totalDonation || 0;
 
-const expenseResult =
-  await DharamshalaExpense.aggregate([
-    {
-      $match: {
-        dharamshalaId:
-          objectId,
-      },
-    },
-    {
-      $group: {
-        _id: null,
-        totalExpense: {
-          $sum: "$amount",
-        },
-      },
-    },
-  ]);
+      const expenseResult =
+        await DharamshalaLedger.aggregate([
+          {
+            $match: {
+              dharamshalaId: objectId,
+              transactionType: "DEBIT",
+              status: "SUCCESS",
+              statusFlag: 1,
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalExpense: {
+                $sum: "$amount",
+              },
+            },
+          },
+        ]);
 
-const totalExpenses =
-  expenseResult?.[0]
-    ?.totalExpense || 0;
-
-      /* -----------------------------
-         TOTAL ADVANCE ISSUED
-      ----------------------------- */
+      const totalExpenses =
+        expenseResult?.[0]?.totalExpense || 0;
 
       const advanceResult =
         await DharamshalaVoucher.aggregate([
           {
             $match: {
-              dharamshalaId:
-                objectId,
-
-              category:
-                "ADVANCE",
+              dharamshalaId: objectId,
+              category: "ADVANCE",
+              status: {
+                $in: [
+                  "APPROVED",
+                  "PARTIALLY_SETTLED",
+                  "SETTLED",
+                ],
+              },
+              statusFlag: 1,
             },
           },
           {
             $group: {
               _id: null,
               totalAdvance: {
-                $sum:
-                  "$approvedAmount",
+                $sum: "$approvedAmount",
               },
             },
           },
         ]);
 
       const totalAdvanceIssued =
-        advanceResult?.[0]
-          ?.totalAdvance || 0;
-
-      /* -----------------------------
-         OUTSTANDING ADVANCES
-      ----------------------------- */
+        advanceResult?.[0]?.totalAdvance || 0;
 
       const outstandingResult =
         await DharamshalaVoucher.aggregate([
           {
             $match: {
-              dharamshalaId:
-                objectId,
-
-              category:
-                "ADVANCE",
-
+              dharamshalaId: objectId,
+              category: "ADVANCE",
               status: {
                 $in: [
                   "APPROVED",
                   "PARTIALLY_SETTLED",
                 ],
               },
+              statusFlag: 1,
             },
           },
           {
@@ -1914,91 +1876,59 @@ const totalExpenses =
             $group: {
               _id: null,
               totalPending: {
-                $sum:
-                  "$pendingAmount",
+                $sum: "$pendingAmount",
               },
             },
           },
         ]);
 
       const outstandingAdvances =
-        outstandingResult?.[0]
-          ?.totalPending || 0;
-
-      /* -----------------------------
-         VOUCHER COUNTS
-      ----------------------------- */
+        outstandingResult?.[0]?.totalPending || 0;
 
       const pendingVoucherCount =
-        await DharamshalaVoucher.countDocuments(
-          {
-            dharamshalaId,
-            status:
-              "PENDING",
-          }
-        );
+        await DharamshalaVoucher.countDocuments({
+          dharamshalaId,
+          status: "PENDING",
+          statusFlag: 1,
+        });
 
       const approvedVoucherCount =
-        await DharamshalaVoucher.countDocuments(
-          {
-            dharamshalaId,
-            status:
-              "APPROVED",
-          }
-        );
+        await DharamshalaVoucher.countDocuments({
+          dharamshalaId,
+          status: "APPROVED",
+          statusFlag: 1,
+        });
 
       const settledVoucherCount =
-        await DharamshalaVoucher.countDocuments(
-          {
-            dharamshalaId,
-            status:
-              "SETTLED",
-          }
-        );
-
-      /* -----------------------------
-         TOTAL TRANSACTIONS
-      ----------------------------- */
+        await DharamshalaVoucher.countDocuments({
+          dharamshalaId,
+          status: "SETTLED",
+          statusFlag: 1,
+        });
 
       const totalTransactions =
-        await DharamshalaLedger.countDocuments(
-          {
-            dharamshalaId,
-            status:
-              "SUCCESS",
-          }
-        );
-
-      /* -----------------------------
-         TOTAL EXPENSE RECORDS
-      ----------------------------- */
+        await DharamshalaLedger.countDocuments({
+          dharamshalaId,
+          status: "SUCCESS",
+          statusFlag: 1,
+        });
 
       const totalExpenseRecords =
-        await DharamshalaExpense.countDocuments(
-          {
-            dharamshalaId,
-          }
-        );
+        await DharamshalaExpense.countDocuments({
+          dharamshalaId,
+          statusFlag: 1,
+        });
 
       const response = {
         bankBalance,
-
         totalDonations,
-
         totalExpenses,
-
         totalAdvanceIssued,
-
         outstandingAdvances,
-
         pendingVoucherCount,
-
         approvedVoucherCount,
-
         settledVoucherCount,
-
         totalTransactions,
-
         totalExpenseRecords,
       };
 
@@ -2012,9 +1942,7 @@ const totalExpenses =
         "Finance dashboard fetched successfully",
         response
       );
-
     } catch (err) {
-
       logger.error(
         "getFinanceDashboard service error",
         {

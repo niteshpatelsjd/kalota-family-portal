@@ -179,6 +179,23 @@ DharamshalaLedgerSchema.index({
 DharamshalaLedgerSchema.index({
   category: 1
 });
+
+
+DharamshalaLedgerSchema.pre("validate", function (next) {
+  const amount = Number(this.amount || 0);
+
+  if (this.transactionType === "CREDIT") {
+    this.creditAmount = amount;
+    this.debitAmount = 0;
+  }
+
+  if (this.transactionType === "DEBIT") {
+    this.debitAmount = amount;
+    this.creditAmount = 0;
+  }
+
+  next();
+});
 module.exports = mongoose.model(
   "dharamshala_ledger",
   DharamshalaLedgerSchema
