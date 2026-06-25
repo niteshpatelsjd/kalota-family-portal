@@ -1,7 +1,10 @@
 // services/DonationService.js
 
 const mongoose = require("mongoose");
-
+const uploadToCloudinary =
+  require(
+    "../utils/CloudnaryUploadUtil"
+  );
 const DharamshalaDonation = require("../models/DharamshalaDonation");
 const DharamshalaVoucher = require("../models/DharamshalaVoucher");
 const DharamshalaLedger = require("../models/DharamshalaLedger");
@@ -461,7 +464,7 @@ async function cancelDonation(body) {
   }
 }
 
-async function depositCashDonation(body) {
+async function depositCashDonation(body, file) {
   const session = await mongoose.startSession();
 
   try {
@@ -471,12 +474,12 @@ async function depositCashDonation(body) {
       donationId,
       bankAccountId,
       referenceNumber = "",
-      bankReceiptUrl = "",
       remarks = "",
       updatedBy = null,
     } = body;
 
     if (!donationId) {
+      await session.abortTransaction();
       return buildResponse(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "donationId is required"
@@ -484,163 +487,116 @@ async function depositCashDonation(body) {
     }
 
     if (!bankAccountId) {
+      await session.abortTransaction();
       return buildResponse(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "bankAccountId is required"
       );
     }
 
-    const donation =
-      await DharamshalaDonation.findById(
-        donationId
-      ).session(session);
+    const donation = await DharamshalaDonation.findById(donationId).session(
+      session
+    );
 
     if (!donation) {
       await session.abortTransaction();
-
       return buildResponse(
         DataConstant.CLIENT_ERROR.NOT_FOUND,
         "Donation not found"
       );
     }
 
-    if (
-      donation.donationType !==
-      "MONEY"
-    ) {
+    if (donation.donationType !== "MONEY") {
       await session.abortTransaction();
-
       return buildResponse(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "Only money donation can be deposited"
       );
     }
 
-    if (
-      donation.depositStatus !==
-      "PENDING"
-    ) {
+    if (donation.depositStatus !== "PENDING") {
       await session.abortTransaction();
-
       return buildResponse(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
         `Donation already ${donation.depositStatus}`
       );
     }
 
-    const bankAccount =
-      await DharamshalaBankAccount.findById(
-        bankAccountId
-      ).session(session);
+    const bankAccount = await DharamshalaBankAccount.findById(
+      bankAccountId
+    ).session(session);
 
     if (!bankAccount) {
       await session.abortTransaction();
-
       return buildResponse(
         DataConstant.CLIENT_ERROR.NOT_FOUND,
         "Bank account not found"
       );
     }
 
-    const ledger =
-      await DharamshalaLedger.create(
-        [
-          {
-            dharamshalaId:
-              donation.dharamshalaId,
+    let bankReceiptUrl = "";
 
-            bankAccountId,
-
-            voucherId:
-              donation.voucherId,
-
-            transactionType:
-              "CREDIT",
-
-            category: "DONATION",
-
-            amount:
-              donation.amount,
-
-            transactionDate:
-              new Date(),
-
-            description:
-              `Donation Deposit - ${donation.receiptNumber}`,
-
-            committeeMemberId:
-              donation.collectedBy,
-
-            referenceNumber,
-
-            fromAccountType:
-              "MEMBER",
-
-            toAccountType:
-              "BANK",
-
-            createdBy:
-              updatedBy,
-          },
-        ],
-        { session }
+    if (file) {
+      const uploaded = await uploadToCloudinary(
+        file.path,
+        "kalota/deposit-receipts"
       );
+
+      bankReceiptUrl = uploaded?.url || "";
+    }
+
+    const ledger = await DharamshalaLedger.create(
+      [
+        {
+          dharamshalaId: donation.dharamshalaId,
+          bankAccountId,
+          voucherId: donation.voucherId,
+          transactionType: "CREDIT",
+          category: "DONATION",
+          amount: donation.amount,
+          transactionDate: new Date(),
+          description: `Donation Deposit - ${donation.receiptNumber}`,
+          committeeMemberId: donation.collectedBy,
+          referenceNumber,
+          fromAccountType: "MEMBER",
+          toAccountType: "BANK",
+          createdBy: updatedBy,
+        },
+      ],
+      { session }
+    );
 
     await DharamshalaBankAccount.findByIdAndUpdate(
       bankAccountId,
       {
         $inc: {
-          currentBalance:
-            donation.amount,
+          currentBalance: donation.amount,
         },
       },
       { session }
     );
 
-    donation.depositStatus =
-      "DEPOSITED";
+    donation.depositStatus = "DEPOSITED";
+    donation.bankAccountId = bankAccountId;
+    donation.bankReceiptUrl = bankReceiptUrl;
+    donation.ledgerId = ledger[0]._id;
+    donation.verifiedBy = updatedBy;
+    donation.verifiedAt = new Date();
+    donation.remarks = remarks || donation.remarks;
+    donation.updatedBy = updatedBy;
 
-    donation.bankAccountId =
-      bankAccountId;
-
-    donation.bankReceiptUrl =
-      bankReceiptUrl;
-
-    donation.ledgerId =
-      ledger[0]._id;
-
-    donation.verifiedBy =
-      updatedBy;
-
-    donation.verifiedAt =
-      new Date();
-
-    donation.remarks =
-      remarks;
-
-    donation.updatedBy =
-      updatedBy;
-
-    await donation.save({
-      session,
-    });
+    await donation.save({ session });
 
     await session.commitTransaction();
 
-    return buildResponse(
-      DataConstant.SUCCESS.OK,
-      "Donation deposited successfully",
-      {
-        donation,
-        ledger: ledger[0],
-      }
-    );
+    return buildResponse(DataConstant.SUCCESS.OK, "Donation deposited successfully", {
+      donation,
+      ledger: ledger[0],
+    });
   } catch (error) {
     await session.abortTransaction();
 
-    logger.error(
-      `depositCashDonation error: ${error.message}`
-    );
+    logger.error(`depositCashDonation error: ${error.message}`);
 
     return buildResponse(
       DataConstant.SERVER_ERROR.SERVER_ERROR,

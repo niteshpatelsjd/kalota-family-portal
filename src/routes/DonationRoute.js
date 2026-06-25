@@ -1,6 +1,28 @@
 // routes/DonationRoutes.js
 
 const express = require("express");
+const multer = require("multer");
+// Multer setup (memory storage so we can pass buffer to fileUtil)
+
+const storage =
+  multer.diskStorage({
+    destination:
+      "./uploads",
+
+    filename: (
+      req,
+      file,
+      cb
+    ) => {
+      cb(
+        null,
+        Date.now() +
+          "-" +
+          file.originalname
+      );
+    },
+  });
+const upload = multer({ storage });
 
 const {
   createDonation,
@@ -303,17 +325,18 @@ router.get("/getById/:id", getDonationById);
  *         description: Failed to cancel donation
  */
 router.post("/cancel", cancelDonation);
+
 /**
  * @swagger
  * /admin/donation/depositCash:
  *   post:
  *     summary: Deposit pending cash donation
- *     description: Deposit a pending money donation collected by committee member. This will automatically create ledger entry and update bank account balance.
+ *     description: Deposit pending cash donation, upload bank receipt and automatically create ledger.
  *     tags: [Donation]
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             required:
@@ -329,21 +352,21 @@ router.post("/cancel", cancelDonation);
  *               referenceNumber:
  *                 type: string
  *                 example: "SBI-CASH-DEP-2026-001"
- *               bankReceiptUrl:
+ *               receiptFile:
  *                 type: string
- *                 example: "https://res.cloudinary.com/demo/image/upload/receipt.jpg"
+ *                 format: binary
  *               remarks:
  *                 type: string
  *                 example: "Cash deposited to SBI bank account"
  *               updatedBy:
  *                 type: string
- *                 description: Optional admin user id. If not provided, it will be taken from auth token.
  *                 example: "676abc1234567890abcd3333"
+ *
  *     responses:
  *       200:
- *         description: Donation deposited and ledger created successfully
+ *         description: Donation deposited successfully
  *       400:
- *         description: Invalid request or donation already deposited/cancelled
+ *         description: Validation error
  *       404:
  *         description: Donation or bank account not found
  *       500:
@@ -351,6 +374,7 @@ router.post("/cancel", cancelDonation);
  */
 router.post(
   "/depositCash",
+  upload.single("receiptFile"),
   depositCashDonation
 );
 

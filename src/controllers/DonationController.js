@@ -81,20 +81,13 @@ exports.cancelDonation = async (req, res) => {
   return res.status(200).json(response);
 };
 
-exports.depositCashDonation = async (
-  req,
-  res
-) => {
-  const response =
-    await depositCashDonation({
-      ...req.body
-    });
+exports.depositCashDonation = async (req, res) => {
+  const response = await depositCashDonation(
+    req.body,
+    req.file
+  );
 
-  return res
-    .status(
-      response.responseCode
-    )
-    .json(response);
+  return res.status(200).json(response);
 };
 
 exports.verifyItemDonation = async (req, res)=> {
