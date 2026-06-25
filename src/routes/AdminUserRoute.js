@@ -31,6 +31,8 @@ const storage =
   });
 const upload = multer({ storage });
 
+
+
 /**
  * Middleware for JWT authentication
  */
@@ -101,6 +103,48 @@ function auth(req, res, next) {
 router.post("/addAdmin", upload.fields([
     { name: "imageFile", maxCount: 1 }
   ]), ctrl.addAdmin);
+
+
+/**
+ * @openapi
+ * /admin/user/linkMobileUser:
+ *   post:
+ *     tags: [Admin User Controller]
+ *     summary: Link Admin User with Mobile User
+ *     description: >
+ *       Links an Admin User with a Mobile User account. This allows committee
+ *       members to log in from the mobile app and access committee features
+ *       such as finance dashboard, family approval, etc.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - adminUserId
+ *               - mobileUserId
+ *             properties:
+ *               adminUserId:
+ *                 type: string
+ *                 example: "6867f56f8e2f123456789abc"
+ *
+ *               mobileUserId:
+ *                 type: string
+ *                 example: "6868a32f8e2f123456789def"
+ *
+ *     responses:
+ *       200:
+ *         description: Mobile user linked successfully
+ *       400:
+ *         description: Invalid request or already linked
+ *       404:
+ *         description: Admin user or mobile user not found
+ */
+router.post(
+  "/linkMobileUser",
+  ctrl.linkMobileUser
+);
 
 /**
  * @openapi

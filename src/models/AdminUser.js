@@ -30,6 +30,11 @@ const AdminUserSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  mobileUserId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "user",
+    default: null,
+},
   createdAt: {
     type: Date,
     default: Date.now,

@@ -13,6 +13,7 @@ const bcrypt = require("bcryptjs");
 const mailUtil = require("../utils/mailUtil");
 const crypto = require("crypto");
 const redisClient = require("../config/RedisConfig");
+const User = require("../models/User");
 const uploadToCloudinary =
   require(
     "../utils/CloudnaryUploadUtil"
@@ -45,6 +46,73 @@ const DataConstant = {
   ROLE_ALREADY_INACTIVE: "Role is already inactive",
   INVALID_REQUEST: "Invalid request"
 };
+
+async function linkMobileUser(data) {
+  try {
+    logger.info("linkMobileUser service started", {
+      request: data,
+    });
+
+    const { adminUserId, mobileUserId } = data;
+
+    if (!adminUserId) {
+      return buildResponse(400, "Admin user is required", null);
+    }
+
+    if (!mobileUserId) {
+      return buildResponse(400, "Mobile user is required", null);
+    }
+
+    const adminUser = await AdminUser.findById(adminUserId);
+
+    if (!adminUser) {
+      return buildResponse(404, "Admin user not found", null);
+    }
+
+    const mobileUser = await User.findById(mobileUserId);
+
+    if (!mobileUser) {
+      return buildResponse(404, "Mobile user not found", null);
+    }
+
+    const alreadyLinked = await AdminUser.findOne({
+      mobileUserId,
+      _id: { $ne: adminUserId },
+    });
+
+    if (alreadyLinked) {
+      return buildResponse(
+        400,
+        "This mobile user is already linked with another admin user",
+        null
+      );
+    }
+
+    adminUser.mobileUserId = mobileUserId;
+    adminUser.updatedAt = new Date();
+
+    await adminUser.save();
+
+    return buildResponse(200, "Mobile user linked successfully", {
+      adminUser: buildUserResponse(adminUser),
+      mobileUser: {
+        id: mobileUser._id,
+        name: mobileUser.name,
+        mobileNumber: mobileUser.mobileNumber,
+        familyId: mobileUser.familyId,
+        profileUrl: mobileUser.profileUrl,
+      },
+    });
+  } catch (err) {
+    logger.error("linkMobileUser service error", {
+      error: err.message,
+      stack: err.stack,
+      request: data,
+    });
+
+    return buildResponse(500, err.message, null);
+  }
+}
 
 async function addAdmin(data) {
   try {
@@ -1079,5 +1147,6 @@ module.exports = {
   getTotalUserCount,
   getAllUserSessions,
   loginAdmin,
-  logout
+  logout,
+  linkMobileUser
 };

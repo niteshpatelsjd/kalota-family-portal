@@ -3,6 +3,29 @@ const buildResponse = require("../utils/response");
 const fileUtil = require("../utils/FileUtil");
 const logger = require("../utils/logger");
 
+
+exports.linkMobileUser = async (req, res) => {
+  try {
+    logger.info("linkMobileUser request", {
+      body: req.body,
+    });
+
+    const result = await adminUserService.linkMobileUser({
+      ...req.body,
+    });
+
+    return res.status(200).json(result);
+  } catch (err) {
+    logger.error("linkMobileUser controller error", {
+      error: err.message,
+      stack: err.stack,
+    });
+
+    return res
+      .status(200)
+      .json(buildResponse(500, err.message, null));
+  }
+};
 // 🔹 Update Profile
 exports.addAdmin = async (req, res) => {
   try {

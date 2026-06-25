@@ -4,6 +4,8 @@ const userDeviceRepo = require("../repositories/UserDeviceRepository");
 const redis = require("../config/RedisConfig");
 const jwtUtil = require("../utils/JwtUtil");
 const { uploadFile } = require("../utils/FileUtil");
+const AdminUser = require("../models/AdminUser");
+const DharamshalaCommittee = require("../models/DharamshalaCommittee");
 const uploadToCloudinary =
   require(
     "../utils/CloudnaryUploadUtil"
@@ -207,6 +209,93 @@ async function requestOtp( mobileNumber) {
     otp
   );
 }
+
+async function getCommitteeAccessByMobileUserId(mobileUserId) {
+  try {
+    const defaultAccess = {
+      isCommitteeMember: false,
+      adminUserId: null,
+      role: null,
+      dharamshalaIds: [],
+      permissions: {
+        canApproveFamily: false,
+        canViewFinance: false,
+        canManageDonation: false,
+      },
+    };
+
+    if (!mobileUserId) {
+      return defaultAccess;
+    }
+
+    const adminUser = await AdminUser.findOne({
+      mobileUserId,
+      status: 1,
+    }).lean();
+
+    if (!adminUser) {
+      return defaultAccess;
+    }
+
+    const committees = await DharamshalaCommittee.find({
+      userId: adminUser._id,
+      status: 1,
+    }).lean();
+
+    if (!committees || committees.length === 0) {
+      return defaultAccess;
+    }
+
+    const roles = committees.map((c) => c.committeeRole);
+
+    const primaryRole =
+      roles.includes("PRESIDENT")
+        ? "PRESIDENT"
+        : roles.includes("VICE_PRESIDENT")
+          ? "VICE_PRESIDENT"
+          : roles.includes("SECRETARY")
+            ? "SECRETARY"
+            : roles.includes("TREASURER")
+              ? "TREASURER"
+              : roles[0];
+
+    return {
+      isCommitteeMember: true,
+      adminUserId: adminUser._id,
+      role: primaryRole,
+      roles,
+      dharamshalaIds: committees.map((c) => c.dharamshalaId),
+      committeeMembers: committees.map((c) => ({
+        committeeId: c._id,
+        dharamshalaId: c.dharamshalaId,
+        committeeRole: c.committeeRole,
+      })),
+      permissions: {
+        canApproveFamily: true,
+        canViewFinance: true,
+        canManageDonation: true,
+      },
+    };
+  } catch (error) {
+    logger.error("getCommitteeAccessByMobileUserId error", {
+      error: error.message,
+      stack: error.stack,
+      mobileUserId,
+    });
+
+    return {
+      isCommitteeMember: false,
+      adminUserId: null,
+      role: null,
+      dharamshalaIds: [],
+      permissions: {
+        canApproveFamily: false,
+        canViewFinance: false,
+        canManageDonation: false,
+      },
+    };
+  }
+}
 // 🟢 Verify OTP
 async function verifyOtp(
   mobileNumber,
@@ -407,15 +496,20 @@ async function verifyOtp(
       );
     }
 
+    const committeeAccess =
+  await getCommitteeAccessByMobileUserId(user._id);
     return buildResponse(
-      200,
-      "OTP verified successfully",
-      {
-        isRegistered: true,
-        accessToken: token,
-        user: userResponse.buildUserResponse(user),
-      }
-    );
+  200,
+  "OTP verified successfully",
+  {
+    isRegistered: true,
+    accessToken: token,
+    user: {
+      ...userResponse.buildUserResponse(user),
+      committeeAccess,
+    },
+  }
+);
   } catch (err) {
     logger.error(
       `verifyOtp failed for ${key}: ${err.message}`,
