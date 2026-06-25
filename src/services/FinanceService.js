@@ -2076,6 +2076,7 @@ const totalExpenses =
     const statement = ledgerEntries.map((entry) => ({
       transactionDate: entry.transactionDate,
       voucherNumber: entry.voucherNumber,
+      ledgerNumber: entry.ledgerNumber,
       transactionNumber: entry.transactionNumber,
       category: entry.category,
       description: entry.description,
