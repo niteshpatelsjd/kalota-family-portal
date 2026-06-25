@@ -70,6 +70,7 @@ function buildUserResponse(user) {
     status: user.status,
     profileCompleted: user.profileCompleted || false,
     roleId: user.roleId || "",
+    mobileUserId: user.mobileUserId || null,
     createdAt: convertDateToString(user.createdAt),
     updatedAt: convertDateToString(user.updatedAt),
   };
@@ -96,6 +97,7 @@ async function buildUserRoleResponse(user) {
     status: user.status,
     profileCompleted: user.profileCompleted || false,
     roleId: user.roleId,
+    mobileUserId: user.mobileUserId || null,
     createdAt: convertDateToString(user.createdAt),
     updatedAt: convertDateToString(user.updatedAt),
     roleResponse: role ? buildRoleResponse(role) : null,
