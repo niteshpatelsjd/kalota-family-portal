@@ -839,49 +839,59 @@ exports.getBankStatement =
    ADD EXPENSE
 ───────────────────────────────────── */
 
-exports.addExpense =
-  async (req, res) => {
-    try {
+exports.addDirectBankExpense = async (req, res) => {
+  try {
+    logger.info("addDirectBankExpense request", {
+      body: req.body,
+    });
 
-      logger.info(
-        "addExpense request",
-        {
-          body: req.body,
-        }
-      );
+    const result = await financeService.addDirectBankExpense({
+      ...req.body,
+    });
 
-      const result =
-        await financeService.addExpense(
-          {
-            ...req.body,
-          }
-        );
+    return res.status(200).json(result);
+  } catch (err) {
+    logger.error("addDirectBankExpense controller error", {
+      error: err.message,
+      stack: err.stack,
+    });
 
-      return res
-        .status(200)
-        .json(result);
+    return res.status(200).json(
+      buildResponse(
+        DataConstant.SERVER_ERROR.SERVER_ERROR,
+        err.message,
+        null
+      )
+    );
+  }
+};
 
-    } catch (err) {
+exports.addExpenseAgainstAdvance = async (req, res) => {
+  try {
+    logger.info("addExpenseAgainstAdvance request", {
+      body: req.body,
+    });
 
-      logger.error(
-        "addExpense controller error",
-        {
-          error: err.message,
-          stack: err.stack,
-        }
-      );
+    const result = await financeService.addExpenseAgainstAdvance({
+      ...req.body,
+    });
 
-      return res
-        .status(200)
-        .json(
-          buildResponse(
-            DataConstant.SERVER_ERROR.SERVER_ERROR,
-            err.message,
-            null
-          )
-        );
-    }
-  };
+    return res.status(200).json(result);
+  } catch (err) {
+    logger.error("addExpenseAgainstAdvance controller error", {
+      error: err.message,
+      stack: err.stack,
+    });
+
+    return res.status(200).json(
+      buildResponse(
+        DataConstant.SERVER_ERROR.SERVER_ERROR,
+        err.message,
+        null
+      )
+    );
+  }
+};
 
 exports.getExpenseById =
   async (req, res) => {
@@ -926,80 +936,66 @@ exports.getExpenseById =
     }
   };
 
-exports.getAllExpenses =
-  async (req, res) => {
-    try {
+exports.getAllExpenses = async (req, res) => {
+  try {
+    let {
+      pageIndex = 0,
+      pageSize = 10,
+      dharamshalaId,
+      expenseType,
+      voucherId,
+      expenseSource,
+      paymentMode,
+      searchText = "",
+      fromDate,
+      toDate,
+    } = req.query;
 
-      let {
-        pageIndex = 0,
-        pageSize = 10,
-        dharamshalaId,
-        expenseType,
-        voucherId,
-        searchText,
-        fromDate,
-        toDate,
-      } = req.query;
+    pageIndex = parseInt(pageIndex, 10);
+    pageSize = parseInt(pageSize, 10);
 
-      pageIndex =
-        parseInt(pageIndex, 10);
+    logger.info("getAllExpenses request", {
+      pageIndex,
+      pageSize,
+      dharamshalaId,
+      expenseType,
+      voucherId,
+      expenseSource,
+      paymentMode,
+      searchText,
+      fromDate,
+      toDate,
+    });
 
-      pageSize =
-        parseInt(pageSize, 10);
+    const result = await financeService.getAllExpenses({
+      pageIndex,
+      pageSize,
+      dharamshalaId,
+      expenseType,
+      voucherId,
+      expenseSource,
+      paymentMode,
+      searchText,
+      fromDate,
+      toDate,
+    });
 
-      logger.info(
-        "getAllExpenses request",
-        {
-          pageIndex,
-          pageSize,
-          dharamshalaId,
-          expenseType,
-          voucherId,
-          searchText,
-          fromDate,
-          toDate,
-        }
-      );
+    return res.status(200).json(result);
+  } catch (err) {
+    logger.error("getAllExpenses controller error", {
+      error: err.message,
+      stack: err.stack,
+    });
 
-      const result =
-        await financeService.getAllExpenses(
-          {
-            pageIndex,
-            pageSize,
-            dharamshalaId,
-            expenseType,
-            voucherId,
-            searchText,
-            fromDate,
-            toDate,
-          }
-        );
-
-      return res
-        .status(200)
-        .json(result);
-
-    } catch (err) {
-
-      logger.error(
-        "getAllExpenses controller error",
-        {
-          error: err.message,
-          stack: err.stack,
-        }
-      );
-
-      return res
-        .status(200)
-        .json(
-          buildResponse(
-            DataConstant.SERVER_ERROR.SERVER_ERROR,
-            err.message,
-            null
-          )
-        );
-    }
-  };
+    return res.status(200).json(
+      buildResponse(
+        DataConstant.SERVER_ERROR.SERVER_ERROR,
+        err.message,
+        null
+      )
+    );
+  }
+};
 
 exports.getCommitteeMemberAdvanceSummary =
   async (req, res) => {

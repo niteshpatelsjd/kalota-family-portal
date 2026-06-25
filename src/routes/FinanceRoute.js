@@ -639,9 +639,10 @@ router.get(
 
 /**
  * @swagger
- * /admin/finance/addExpense:
+ * /admin/finance/addDirectBankExpense:
  *   post:
- *     summary: Create Expense
+ *     summary: Create Direct Bank Expense
+ *     description: Creates an expense directly from the bank account. Automatically creates Voucher, Ledger and deducts the bank balance.
  *     tags: [Finance]
  *     requestBody:
  *       required: true
@@ -651,20 +652,16 @@ router.get(
  *             type: object
  *             required:
  *               - dharamshalaId
- *               - voucherId
+ *               - bankAccountId
  *               - expenseType
  *               - title
  *               - amount
+ *               - createdBy
  *             properties:
  *               dharamshalaId:
  *                 type: string
- *
- *               voucherId:
+ *               bankAccountId:
  *                 type: string
- *
- *               ledgerId:
- *                 type: string
- *
  *               expenseType:
  *                 type: string
  *                 enum:
@@ -678,45 +675,34 @@ router.get(
  *                   - TRAVEL
  *                   - FOOD
  *                   - OTHER
- *
  *               title:
  *                 type: string
- *
  *               vendorName:
  *                 type: string
- *
  *               vendorMobile:
  *                 type: string
- *
  *               billNumber:
  *                 type: string
- *
  *               billDate:
  *                 type: string
  *                 format: date
- *
  *               amount:
  *                 type: number
- *
  *               paymentMode:
  *                 type: string
  *                 enum:
- *                   - CASH
  *                   - BANK
  *                   - UPI
  *                   - CHEQUE
- *
+ *                   - NEFT
  *               description:
  *                 type: string
- *
  *               attachmentUrls:
  *                 type: array
  *                 items:
  *                   type: string
- *
  *               createdBy:
  *                 type: string
- *
  *               items:
  *                 type: array
  *                 items:
@@ -730,33 +716,30 @@ router.get(
  *                         - TRANSPORT
  *                         - SERVICE
  *                         - OTHER
- *
  *                     itemName:
  *                       type: string
- *
  *                     quantity:
  *                       type: number
- *
  *                     unit:
  *                       type: string
- *
  *                     rate:
  *                       type: number
- *
  *                     amount:
  *                       type: number
- *
  *                     remarks:
  *                       type: string
- *
  *           example:
  *             dharamshalaId: "66b123456789012345678901"
- *             voucherId: "66b123456789012345678902"
+ *             bankAccountId: "66b123456789012345678902"
  *             expenseType: "PURCHASE"
- *             title: "Bartan Purchase"
+ *             title: "Kitchen Utensils Purchase"
+ *             vendorName: "Shree Steel House"
+ *             vendorMobile: "9876543210"
+ *             billNumber: "INV-001"
+ *             billDate: "2026-06-25"
  *             amount: 70000
  *             paymentMode: "BANK"
- *             description: "Purchase of kitchen utensils"
+ *             description: "Purchased utensils for kitchen"
  *             createdBy: "66b123456789012345678903"
  *             items:
  *               - itemType: "MATERIAL"
@@ -765,16 +748,132 @@ router.get(
  *                 unit: "Piece"
  *                 rate: 250
  *                 amount: 25000
- *
  *     responses:
  *       200:
- *         description: Expense created successfully
+ *         description: Direct bank expense created successfully
  */
 router.post(
-  "/addExpense",
-  financeController.addExpense
+  "/addDirectBankExpense",
+  financeController.addDirectBankExpense
 );
 
+
+/**
+ * @swagger
+ * /admin/finance/addExpenseAgainstAdvance:
+ *   post:
+ *     summary: Create Expense Against Advance
+ *     description: Creates an expense against an existing advance voucher. No bank deduction or ledger will be created because the money has already been withdrawn.
+ *     tags: [Finance]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - dharamshalaId
+ *               - voucherId
+ *               - expenseType
+ *               - title
+ *               - amount
+ *               - createdBy
+ *             properties:
+ *               dharamshalaId:
+ *                 type: string
+ *               voucherId:
+ *                 type: string
+ *               expenseType:
+ *                 type: string
+ *                 enum:
+ *                   - UTILITY
+ *                   - LABOUR
+ *                   - SALARY
+ *                   - RENT
+ *                   - MAINTENANCE
+ *                   - PURCHASE
+ *                   - CONSTRUCTION
+ *                   - TRAVEL
+ *                   - FOOD
+ *                   - OTHER
+ *               title:
+ *                 type: string
+ *               vendorName:
+ *                 type: string
+ *               vendorMobile:
+ *                 type: string
+ *               billNumber:
+ *                 type: string
+ *               billDate:
+ *                 type: string
+ *                 format: date
+ *               amount:
+ *                 type: number
+ *               paymentMode:
+ *                 type: string
+ *                 enum:
+ *                   - ADVANCE
+ *               description:
+ *                 type: string
+ *               attachmentUrls:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               createdBy:
+ *                 type: string
+ *               items:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     itemType:
+ *                       type: string
+ *                       enum:
+ *                         - MATERIAL
+ *                         - LABOUR
+ *                         - TRANSPORT
+ *                         - SERVICE
+ *                         - OTHER
+ *                     itemName:
+ *                       type: string
+ *                     quantity:
+ *                       type: number
+ *                     unit:
+ *                       type: string
+ *                     rate:
+ *                       type: number
+ *                     amount:
+ *                       type: number
+ *                     remarks:
+ *                       type: string
+ *           example:
+ *             dharamshalaId: "66b123456789012345678901"
+ *             voucherId: "66b123456789012345678902"
+ *             expenseType: "PURCHASE"
+ *             title: "Fan Purchase"
+ *             vendorName: "Patel Electricals"
+ *             vendorMobile: "9876543210"
+ *             billNumber: "PE-101"
+ *             billDate: "2026-06-25"
+ *             amount: 8500
+ *             paymentMode: "ADVANCE"
+ *             description: "Purchased 10 ceiling fans"
+ *             createdBy: "66b123456789012345678903"
+ *             items:
+ *               - itemType: "MATERIAL"
+ *                 itemName: "Ceiling Fan"
+ *                 quantity: 10
+ *                 unit: "Piece"
+ *                 rate: 850
+ *                 amount: 8500
+ *     responses:
+ *       200:
+ *         description: Expense settled against advance successfully
+ */
+router.post(
+  "/addExpenseAgainstAdvance",
+  financeController.addExpenseAgainstAdvance
+);
 
 /**
  * @swagger
@@ -802,59 +901,106 @@ router.get(
  * /admin/finance/getAllExpenses:
  *   get:
  *     summary: Get All Expenses
+ *     description: Returns paginated expenses for a Dharamshala with optional filters.
  *     tags: [Finance]
  *     parameters:
  *       - in: query
  *         name: pageIndex
  *         schema:
  *           type: integer
+ *           default: 0
+ *         description: Page index
  *
  *       - in: query
  *         name: pageSize
  *         schema:
  *           type: integer
+ *           default: 10
+ *         description: Number of records per page
  *
  *       - in: query
  *         name: dharamshalaId
+ *         required: true
  *         schema:
  *           type: string
+ *         description: Dharamshala Id
  *
  *       - in: query
  *         name: expenseType
  *         schema:
  *           type: string
+ *           enum:
+ *             - UTILITY
+ *             - LABOUR
+ *             - SALARY
+ *             - RENT
+ *             - MAINTENANCE
+ *             - PURCHASE
+ *             - CONSTRUCTION
+ *             - TRAVEL
+ *             - FOOD
+ *             - OTHER
+ *
+ *       - in: query
+ *         name: expenseSource
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - DIRECT_BANK
+ *             - AGAINST_ADVANCE
+ *         description: Expense source
+ *
+ *       - in: query
+ *         name: paymentMode
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - CASH
+ *             - BANK
+ *             - UPI
+ *             - CHEQUE
+ *             - NEFT
+ *             - ADVANCE
+ *         description: Payment mode
  *
  *       - in: query
  *         name: voucherId
  *         schema:
  *           type: string
+ *         description: Voucher Id
  *
  *       - in: query
  *         name: searchText
  *         schema:
  *           type: string
+ *         description: Search by expense number, title, vendor name, vendor mobile or bill number
  *
  *       - in: query
  *         name: fromDate
  *         schema:
  *           type: string
  *           format: date
+ *         description: Bill date from
  *
  *       - in: query
  *         name: toDate
  *         schema:
  *           type: string
  *           format: date
+ *         description: Bill date to
  *
  *     responses:
  *       200:
  *         description: Expenses fetched successfully
+ *       400:
+ *         description: Invalid request
+ *       500:
+ *         description: Internal server error
  */
 router.get(
   "/getAllExpenses",
   financeController.getAllExpenses
 );
-
 /**
  * @swagger
  * /admin/finance/getCommitteeMemberAdvanceSummary:

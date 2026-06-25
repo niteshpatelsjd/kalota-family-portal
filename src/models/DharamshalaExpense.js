@@ -82,17 +82,30 @@ const DharamshalaExpenseSchema =
         required: true,
         default: 0,
       },
+bankAccountId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "dharamshala_bank_account",
+  default: null,
+},
 
-      paymentMode: {
-        type: String,
-        enum: [
-          "CASH",
-          "BANK",
-          "UPI",
-          "CHEQUE",
-        ],
-        default: "BANK",
-      },
+expenseSource: {
+  type: String,
+  enum: ["DIRECT_BANK", "AGAINST_ADVANCE"],
+  default: "DIRECT_BANK",
+},
+
+paymentMode: {
+  type: String,
+  enum: [
+    "CASH",
+    "BANK",
+    "UPI",
+    "CHEQUE",
+    "NEFT",
+    "ADVANCE",
+  ],
+  default: "BANK",
+},
 
       description: {
         type: String,

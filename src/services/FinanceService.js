@@ -2135,384 +2135,366 @@ async function generateExpenseNumber() {
    ADD EXPENSE
 ───────────────────────────────────── */
 
-exports.addExpense =
-  async (data) => {
+exports.addDirectBankExpense = async (data) => {
+  const session = await mongoose.startSession();
 
-    try {
+  try {
+    session.startTransaction();
 
-      logger.info(
-        "addExpense service started",
+    logger.info("addDirectBankExpense service started", { request: data });
+
+    const {
+      dharamshalaId,
+      bankAccountId,
+      expenseType,
+      title,
+      vendorName,
+      vendorMobile,
+      billNumber,
+      billDate,
+      amount,
+      paymentMode,
+      description,
+      attachmentUrls,
+      items,
+      createdBy,
+    } = data;
+
+    if (!dharamshalaId) {
+      await session.abortTransaction();
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Dharamshala is required", null);
+    }
+
+    if (!bankAccountId) {
+      await session.abortTransaction();
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Bank account is required", null);
+    }
+
+    if (!expenseType) {
+      await session.abortTransaction();
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Expense type is required", null);
+    }
+
+    if (!title?.trim()) {
+      await session.abortTransaction();
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Title is required", null);
+    }
+
+    if (!amount || Number(amount) <= 0) {
+      await session.abortTransaction();
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Amount should be greater than zero", null);
+    }
+
+    const bankAccount = await DharamshalaBankAccount.findById(bankAccountId).session(session);
+
+    if (!bankAccount) {
+      await session.abortTransaction();
+      return buildResponse(DataConstant.CLIENT_ERROR.NOT_FOUND, "Bank account not found", null);
+    }
+
+    const expenseAmount = Number(amount);
+    const currentBalance = Number(bankAccount.currentBalance || 0);
+
+    if (currentBalance < expenseAmount) {
+      await session.abortTransaction();
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Insufficient bank balance", null);
+    }
+
+    const newBalance = currentBalance - expenseAmount;
+
+    const voucherNumber = await generateVoucherNumber();
+    const ledgerNumber = await generateLedgerNumber();
+    const expenseNumber = await generateExpenseNumber();
+
+    const voucherResult = await DharamshalaVoucher.create(
+      [
         {
-          request: data,
-        }
-      );
-
-      const {
-        dharamshalaId,
-        voucherId,
-        ledgerId,
-        expenseType,
-        title,
-        vendorName,
-        vendorMobile,
-        billNumber,
-        billDate,
-        amount,
-        paymentMode,
-        description,
-        attachmentUrls,
-        items,
-        createdBy,
-      } = data;
-
-      /* -----------------------------
-         VALIDATIONS
-      ----------------------------- */
-
-      if (!dharamshalaId) {
-
-        logger.warn(
-          "addExpense validation failed : dharamshalaId missing"
-        );
-
-        return buildResponse(
-          DataConstant.CLIENT_ERROR.BAD_REQUEST,
-          "Dharamshala is required",
-          null
-        );
-      }
-
-      if (!voucherId) {
-
-        logger.warn(
-          "addExpense validation failed : voucherId missing"
-        );
-
-        return buildResponse(
-          DataConstant.CLIENT_ERROR.BAD_REQUEST,
-          "Voucher is required",
-          null
-        );
-      }
-
-      if (!expenseType) {
-
-        logger.warn(
-          "addExpense validation failed : expenseType missing"
-        );
-
-        return buildResponse(
-          DataConstant.CLIENT_ERROR.BAD_REQUEST,
-          "Expense type is required",
-          null
-        );
-      }
-
-      if (!title?.trim()) {
-
-        logger.warn(
-          "addExpense validation failed : title missing"
-        );
-
-        return buildResponse(
-          DataConstant.CLIENT_ERROR.BAD_REQUEST,
-          "Title is required",
-          null
-        );
-      }
-
-      if (!amount || amount <= 0) {
-
-        logger.warn(
-          "addExpense validation failed : invalid amount",
-          {
-            amount,
-          }
-        );
-
-        return buildResponse(
-          DataConstant.CLIENT_ERROR.BAD_REQUEST,
-          "Amount should be greater than zero",
-          null
-        );
-      }
-
-      logger.info(
-        "addExpense validation completed successfully"
-      );
-
-      /* -----------------------------
-         FETCH VOUCHER
-      ----------------------------- */
-
-      logger.info(
-        "Fetching voucher",
-        {
-          voucherId,
-        }
-      );
-
-      const voucher =
-        await DharamshalaVoucher.findById(
-          voucherId
-        );
-
-      if (!voucher) {
-
-        logger.warn(
-          "Voucher not found",
-          {
-            voucherId,
-          }
-        );
-
-        return buildResponse(
-          DataConstant.CLIENT_ERROR.NOT_FOUND,
-          "Voucher not found",
-          null
-        );
-      }
-
-      logger.info(
-        "Voucher fetched successfully",
-        {
-          voucherId,
-          voucherNumber:
-            voucher.voucherNumber,
-          category:
-            voucher.category,
-          approvedAmount:
-            voucher.approvedAmount,
-          settledAmount:
-            voucher.settledAmount,
-        }
-      );
-
-      /* -----------------------------
-         GENERATE EXPENSE NUMBER
-      ----------------------------- */
-
-      const expenseNumber =
-        await generateExpenseNumber();
-
-      logger.info(
-        "Expense number generated",
-        {
-          expenseNumber,
-        }
-      );
-
-      /* -----------------------------
-         CREATE EXPENSE
-      ----------------------------- */
-
-      logger.info(
-        "Creating expense entry"
-      );
-
-      const expense =
-        await DharamshalaExpense.create({
           dharamshalaId,
-          voucherId,
-          ledgerId,
+          voucherNumber,
+          voucherType: "PAYMENT",
+          category: "EXPENSE",
+          purpose: title,
+          requestedAmount: expenseAmount,
+          requestedBy: createdBy,
+          remarks: description || "",
+          status: "APPROVED",
+          approvedBy: createdBy,
+          approvedAmount: expenseAmount,
+          approvedDate: new Date(),
+          createdBy,
+        },
+      ],
+      { session }
+    );
+
+    const voucher = voucherResult[0];
+
+    const ledgerResult = await DharamshalaLedger.create(
+      [
+        {
+          dharamshalaId,
+          bankAccountId,
+          voucherId: voucher._id,
+          voucherNumber: voucher.voucherNumber,
+          ledgerNumber,
+          transactionType: "DEBIT",
+          category: "EXPENSE",
+          amount: expenseAmount,
+          creditAmount: 0,
+          debitAmount: expenseAmount,
+          runningBalance: newBalance,
+          transactionDate: new Date(),
+          description: `Expense paid - ${title}`,
+          referenceNumber: billNumber || voucher.voucherNumber,
+          fromAccountType: "BANK",
+          fromAccountId: bankAccountId,
+          toAccountType: "VENDOR",
+          toAccountId: null,
+          createdBy,
+        },
+      ],
+      { session }
+    );
+
+    const ledger = ledgerResult[0];
+
+    const expenseResult = await DharamshalaExpense.create(
+      [
+        {
+          dharamshalaId,
+          voucherId: voucher._id,
+          ledgerId: ledger._id,
           expenseNumber,
           expenseType,
           title,
-          vendorName:
-            vendorName || "",
-          vendorMobile:
-            vendorMobile || "",
-          billNumber:
-            billNumber || "",
+          vendorName: vendorName || "",
+          vendorMobile: vendorMobile || "",
+          billNumber: billNumber || "",
           billDate,
-          amount,
-          paymentMode:
-            paymentMode || "BANK",
-          description:
-            description || "",
-          attachmentUrls:
-            attachmentUrls || [],
+          amount: expenseAmount,
+          paymentMode: paymentMode || "BANK",
+          description: description || "",
+          attachmentUrls: attachmentUrls || [],
           createdBy,
-        });
+        },
+      ],
+      { session }
+    );
 
-      logger.info(
-        "Expense created successfully",
-        {
-          expenseId:
-            expense._id,
-          expenseNumber:
-            expense.expenseNumber,
-          amount:
-            expense.amount,
-        }
-      );
+    const expense = expenseResult[0];
 
-      /* -----------------------------
-         CREATE ITEMS
-      ----------------------------- */
+    if (Array.isArray(items) && items.length > 0) {
+      const expenseItems = items.map((item) => ({
+        expenseId: expense._id,
+        itemType: item.itemType || "MATERIAL",
+        itemName: item.itemName,
+        quantity: item.quantity || 1,
+        unit: item.unit || "",
+        rate: item.rate || 0,
+        amount: item.amount || 0,
+        remarks: item.remarks || "",
+      }));
 
-      if (
-        Array.isArray(items) &&
-        items.length > 0
-      ) {
+      await DharamshalaExpenseItem.insertMany(expenseItems, { session });
+    }
 
-        logger.info(
-          "Creating expense items",
-          {
-            itemCount:
-              items.length,
-          }
-        );
+    bankAccount.currentBalance = newBalance;
+    await bankAccount.save({ session });
 
-        const expenseItems =
-          items.map((item) => ({
-            expenseId:
-              expense._id,
+    await session.commitTransaction();
 
-            itemType:
-              item.itemType ||
-              "MATERIAL",
-
-            itemName:
-              item.itemName,
-
-            quantity:
-              item.quantity || 1,
-
-            unit:
-              item.unit || "",
-
-            rate:
-              item.rate || 0,
-
-            amount:
-              item.amount || 0,
-
-            remarks:
-              item.remarks || "",
-          }));
-
-        await DharamshalaExpenseItem.insertMany(
-          expenseItems
-        );
-
-        logger.info(
-          "Expense items created successfully",
-          {
-            expenseId:
-              expense._id,
-            itemCount:
-              expenseItems.length,
-          }
-        );
-      } else {
-
-        logger.info(
-          "No expense items received"
-        );
+    return buildResponse(
+      DataConstant.SUCCESS.OK,
+      "Direct bank expense created successfully",
+      {
+        expense,
+        voucher,
+        ledger,
       }
+    );
+  } catch (err) {
+    await session.abortTransaction();
 
-      /* -----------------------------
-         ADVANCE SETTLEMENT
-      ----------------------------- */
+    logger.error("addDirectBankExpense service error", {
+      error: err.message,
+      stack: err.stack,
+      request: data,
+    });
 
-      if (
-        voucher.category ===
-        "ADVANCE"
-      ) {
+    return buildResponse(
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
+      err.message,
+      null
+    );
+  } finally {
+    session.endSession();
+  }
+};
 
-        logger.info(
-          "Processing advance settlement",
-          {
-            voucherId,
-            approvedAmount:
-              voucher.approvedAmount,
-            previousSettledAmount:
-              voucher.settledAmount,
-            expenseAmount:
-              amount,
-          }
-        );
+exports.addExpenseAgainstAdvance = async (data) => {
+  const session = await mongoose.startSession();
 
-        const settledAmount =
-          voucher.settledAmount +
-          amount;
+  try {
+    session.startTransaction();
 
-        const pendingAmount =
-          voucher.approvedAmount -
-          settledAmount;
+    logger.info("addExpenseAgainstAdvance service started", { request: data });
 
-        let voucherStatus =
-          "PARTIALLY_SETTLED";
+    const {
+      dharamshalaId,
+      voucherId,
+      expenseType,
+      title,
+      vendorName,
+      vendorMobile,
+      billNumber,
+      billDate,
+      amount,
+      paymentMode,
+      description,
+      attachmentUrls,
+      items,
+      createdBy,
+    } = data;
 
-        if (
-          pendingAmount <= 0
-        ) {
-          voucherStatus =
-            "SETTLED";
-        }
+    if (!dharamshalaId) {
+      await session.abortTransaction();
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Dharamshala is required", null);
+    }
 
-        await DharamshalaVoucher.findByIdAndUpdate(
-          voucherId,
-          {
-            settledAmount,
+    if (!voucherId) {
+      await session.abortTransaction();
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Advance voucher is required", null);
+    }
 
-            lastSettlementDate:
-              new Date(),
+    if (!expenseType) {
+      await session.abortTransaction();
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Expense type is required", null);
+    }
 
-            status:
-              voucherStatus,
-          }
-        );
+    if (!title?.trim()) {
+      await session.abortTransaction();
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Title is required", null);
+    }
 
-        logger.info(
-          "Advance settlement completed",
-          {
-            voucherId,
-            settledAmount,
-            pendingAmount,
-            voucherStatus,
-          }
-        );
-      }
+    if (!amount || Number(amount) <= 0) {
+      await session.abortTransaction();
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Amount should be greater than zero", null);
+    }
 
-      const response =
-        buildResponse(
-          DataConstant.SUCCESS.OK,
-          "Expense created successfully",
-          expense
-        );
+    const voucher = await DharamshalaVoucher.findById(voucherId).session(session);
 
-      logger.info(
-        "addExpense service completed successfully",
-        {
-          expenseId:
-            expense._id,
-          responseCode:
-            response.responseCode,
-        }
-      );
+    if (!voucher) {
+      await session.abortTransaction();
+      return buildResponse(DataConstant.CLIENT_ERROR.NOT_FOUND, "Advance voucher not found", null);
+    }
 
-      return response;
+    if (voucher.category !== "ADVANCE") {
+      await session.abortTransaction();
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Voucher is not an advance voucher", null);
+    }
 
-    } catch (err) {
-
-      logger.error(
-        "addExpense service error",
-        {
-          error: err.message,
-          stack: err.stack,
-          request: data,
-        }
-      );
-
+    if (!["APPROVED", "PARTIALLY_SETTLED"].includes(voucher.status)) {
+      await session.abortTransaction();
       return buildResponse(
-        DataConstant.SERVER_ERROR.SERVER_ERROR,
-        err.message,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        `Advance voucher is ${voucher.status}, cannot settle expense`,
         null
       );
     }
-  };
+
+    const expenseAmount = Number(amount);
+    const approvedAmount = Number(voucher.approvedAmount || 0);
+    const previousSettledAmount = Number(voucher.settledAmount || 0);
+    const newSettledAmount = previousSettledAmount + expenseAmount;
+    const pendingAmount = approvedAmount - newSettledAmount;
+
+    if (newSettledAmount > approvedAmount) {
+      await session.abortTransaction();
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        `Expense amount exceeds advance balance. Available: ${approvedAmount - previousSettledAmount}`,
+        null
+      );
+    }
+
+    const expenseNumber = await generateExpenseNumber();
+
+    const expenseResult = await DharamshalaExpense.create(
+      [
+        {
+          dharamshalaId,
+          voucherId,
+          ledgerId: voucher.ledgerId || null,
+          expenseNumber,
+          expenseType,
+          title,
+          vendorName: vendorName || "",
+          vendorMobile: vendorMobile || "",
+          billNumber: billNumber || "",
+          billDate,
+          amount: expenseAmount,
+          paymentMode: paymentMode || "ADVANCE",
+          description: description || "",
+          attachmentUrls: attachmentUrls || [],
+          createdBy,
+        },
+      ],
+      { session }
+    );
+
+    const expense = expenseResult[0];
+
+    if (Array.isArray(items) && items.length > 0) {
+      const expenseItems = items.map((item) => ({
+        expenseId: expense._id,
+        itemType: item.itemType || "MATERIAL",
+        itemName: item.itemName,
+        quantity: item.quantity || 1,
+        unit: item.unit || "",
+        rate: item.rate || 0,
+        amount: item.amount || 0,
+        remarks: item.remarks || "",
+      }));
+
+      await DharamshalaExpenseItem.insertMany(expenseItems, { session });
+    }
+
+    voucher.settledAmount = newSettledAmount;
+    voucher.lastSettlementDate = new Date();
+    voucher.status = pendingAmount <= 0 ? "SETTLED" : "PARTIALLY_SETTLED";
+
+    await voucher.save({ session });
+
+    await session.commitTransaction();
+
+    return buildResponse(
+      DataConstant.SUCCESS.OK,
+      "Expense settled against advance successfully",
+      {
+        expense,
+        voucher,
+        settledAmount: newSettledAmount,
+        pendingAmount,
+      }
+    );
+  } catch (err) {
+    await session.abortTransaction();
+
+    logger.error("addExpenseAgainstAdvance service error", {
+      error: err.message,
+      stack: err.stack,
+      request: data,
+    });
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
+      err.message,
+      null
+    );
+  } finally {
+    session.endSession();
+  }
+};
 
 
 exports.getExpenseById =
@@ -2614,182 +2596,146 @@ exports.getExpenseById =
     }
   };
 
-exports.getAllExpenses =
-  async (data) => {
+exports.getAllExpenses = async (data) => {
+  try {
+    logger.info("getAllExpenses service started", {
+      request: data,
+    });
 
-    try {
+    const {
+      pageIndex = 0,
+      pageSize = 10,
+      dharamshalaId,
+      expenseType,
+      voucherId,
+      expenseSource,
+      paymentMode,
+      searchText = "",
+      fromDate,
+      toDate,
+    } = data;
 
-      logger.info(
-        "getAllExpenses service started",
-        { request: data }
-      );
+    const filter = {
+      statusFlag: 1,
+    };
 
-      const {
-        pageIndex,
-        pageSize,
-        dharamshalaId,
-        expenseType,
-        voucherId,
-        searchText,
-        fromDate,
-        toDate,
-      } = data;
-
-      const filter = {};
-
-      if (dharamshalaId) {
-        filter.dharamshalaId =
-          dharamshalaId;
-      }
-
-      if (expenseType) {
-        filter.expenseType =
-          expenseType;
-      }
-
-      if (voucherId) {
-        filter.voucherId =
-          voucherId;
-      }
-
-      if (
-        searchText &&
-        searchText.trim()
-      ) {
-        filter.$or = [
-          {
-            expenseNumber: {
-              $regex:
-                searchText,
-              $options: "i",
-            },
-          },
-          {
-            title: {
-              $regex:
-                searchText,
-              $options: "i",
-            },
-          },
-          {
-            vendorName: {
-              $regex:
-                searchText,
-              $options: "i",
-            },
-          },
-          {
-            billNumber: {
-              $regex:
-                searchText,
-              $options: "i",
-            },
-          },
-        ];
-      }
-
-      if (
-        fromDate ||
-        toDate
-      ) {
-
-        filter.billDate = {};
-
-        if (fromDate) {
-          filter.billDate.$gte =
-            new Date(fromDate);
-        }
-
-        if (toDate) {
-
-          const endDate =
-            new Date(toDate);
-
-          endDate.setHours(
-            23,
-            59,
-            59,
-            999
-          );
-
-          filter.billDate.$lte =
-            endDate;
-        }
-      }
-
-      logger.info(
-        "Expense filter prepared",
-        filter
-      );
-
-      const totalCount =
-        await DharamshalaExpense.countDocuments(
-          filter
-        );
-
-      const expenses =
-        await DharamshalaExpense.find(
-          filter
-        )
-          .populate(
-            "voucherId",
-            "voucherNumber category status"
-          )
-          .populate(
-            "ledgerId",
-            "ledgerNumber"
-          )
-          .populate(
-            "createdBy",
-            "fullName mobileNumber"
-          )
-          .sort({
-            createdAt: -1,
-          })
-          .skip(
-            pageIndex *
-              pageSize
-          )
-          .limit(pageSize);
-
-      logger.info(
-        "Expenses fetched successfully",
-        {
-          totalCount,
-          returned:
-            expenses.length,
-        }
-      );
-
-      return buildResponse(
-        DataConstant.SUCCESS.OK,
-        "Expenses fetched successfully",
-        {
-          totalCount,
-          pageIndex,
-          pageSize,
-          data: expenses,
-        }
-      );
-
-    } catch (err) {
-
-      logger.error(
-        "getAllExpenses service error",
-        {
-          error: err.message,
-          stack: err.stack,
-          request: data,
-        }
-      );
-
-      return buildResponse(
-        DataConstant.SERVER_ERROR.SERVER_ERROR,
-        err.message,
-        null
-      );
+    if (dharamshalaId) {
+      filter.dharamshalaId = dharamshalaId;
     }
-  };
+
+    if (expenseType) {
+      filter.expenseType = expenseType;
+    }
+
+    if (voucherId) {
+      filter.voucherId = voucherId;
+    }
+
+    if (expenseSource) {
+      filter.expenseSource = expenseSource;
+    }
+
+    if (paymentMode) {
+      filter.paymentMode = paymentMode;
+    }
+
+    if (searchText && searchText.trim()) {
+      filter.$or = [
+        {
+          expenseNumber: {
+            $regex: searchText.trim(),
+            $options: "i",
+          },
+        },
+        {
+          title: {
+            $regex: searchText.trim(),
+            $options: "i",
+          },
+        },
+        {
+          vendorName: {
+            $regex: searchText.trim(),
+            $options: "i",
+          },
+        },
+        {
+          vendorMobile: {
+            $regex: searchText.trim(),
+            $options: "i",
+          },
+        },
+        {
+          billNumber: {
+            $regex: searchText.trim(),
+            $options: "i",
+          },
+        },
+      ];
+    }
+
+    if (fromDate || toDate) {
+      filter.billDate = {};
+
+      if (fromDate) {
+        filter.billDate.$gte = new Date(fromDate);
+      }
+
+      if (toDate) {
+        const endDate = new Date(toDate);
+        endDate.setHours(23, 59, 59, 999);
+        filter.billDate.$lte = endDate;
+      }
+    }
+
+    logger.info("Expense filter prepared", filter);
+
+    const skip = Number(pageIndex) * Number(pageSize);
+    const limit = Number(pageSize);
+
+    const totalElements =
+      await DharamshalaExpense.countDocuments(filter);
+
+    const expenses = await DharamshalaExpense.find(filter)
+      .populate("voucherId", "voucherNumber category status approvedAmount settledAmount")
+      .populate("ledgerId", "ledgerNumber transactionType amount")
+      .populate("bankAccountId", "accountName bankName accountNumber")
+      .populate("createdBy", "name fullName mobileNumber profileUrl")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    logger.info("Expenses fetched successfully", {
+      totalElements,
+      returned: expenses.length,
+    });
+
+    return buildResponse(
+      DataConstant.SUCCESS.OK,
+      "Expenses fetched successfully",
+      {
+        content: expenses,
+        pageIndex: Number(pageIndex),
+        pageSize: Number(pageSize),
+        totalElements,
+        totalPages: Math.ceil(totalElements / limit),
+      }
+    );
+  } catch (err) {
+    logger.error("getAllExpenses service error", {
+      error: err.message,
+      stack: err.stack,
+      request: data,
+    });
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+};
 
 
 exports.getCommitteeMemberAdvanceSummary =
