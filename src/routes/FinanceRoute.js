@@ -361,6 +361,7 @@ router.get(
  * /admin/finance/updateVoucherStatus:
  *   post:
  *     summary: Update Voucher Status
+ *     description: Updates voucher status. When approving PAYMENT vouchers for ADVANCE / EXPENSE / OTHER, bankAccountId is required and ledger entry will be created.
  *     tags: [Finance]
  *     requestBody:
  *       required: true
@@ -368,24 +369,54 @@ router.get(
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - voucherId
+ *               - status
  *             properties:
  *               voucherId:
  *                 type: string
+ *                 example: "66b123456789012345678901"
  *               status:
  *                 type: string
  *                 enum:
  *                   - APPROVED
  *                   - REJECTED
  *                   - CANCELLED
+ *                 example: "APPROVED"
  *               approvedAmount:
  *                 type: number
+ *                 example: 10000
  *               statusReason:
  *                 type: string
+ *                 example: "Approved by treasurer"
  *               statusUpdatedBy:
  *                 type: string
+ *                 example: "66b123456789012345678902"
+ *               bankAccountId:
+ *                 type: string
+ *                 description: Required when approving PAYMENT voucher for ADVANCE / EXPENSE / OTHER.
+ *                 example: "66b123456789012345678903"
+ *               referenceNumber:
+ *                 type: string
+ *                 description: Optional bank/reference number for ledger entry.
+ *                 example: "SBI-WDL-2026-001"
+ *           example:
+ *             voucherId: "66b123456789012345678901"
+ *             status: "APPROVED"
+ *             approvedAmount: 10000
+ *             statusReason: "Advance approved for secretary"
+ *             statusUpdatedBy: "66b123456789012345678902"
+ *             bankAccountId: "66b123456789012345678903"
+ *             referenceNumber: "SBI-WDL-2026-001"
  *     responses:
  *       200:
  *         description: Voucher status updated successfully
+ *       400:
+ *         description: Validation error
+ *       404:
+ *         description: Voucher or bank account not found
+ *       500:
+ *         description: Internal server error
  */
 router.post(
   "/updateVoucherStatus",
