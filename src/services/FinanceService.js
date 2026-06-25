@@ -18,6 +18,8 @@ const DharamshalaLedger =
 const DharamshalaDonation =
   require("../models/DharamshalaDonation");
 
+  const Dharamshala = require("../models/Dharamshala");
+
 const buildResponse =
   require("../utils/response");
 
@@ -1962,201 +1964,156 @@ const totalExpenses =
 
 
 
-  exports.getBankStatement =
-  async (data) => {
-    try {
-      const {
-        dharamshalaId,
-        bankAccountId,
-        fromDate,
-        toDate,
-        pageIndex,
-        pageSize,
-      } = data;
+ exports.getBankStatement = async (data) => {
+  try {
+    const {
+      dharamshalaId,
+      bankAccountId,
+      fromDate,
+      toDate,
+      pageIndex = 0,
+      pageSize = 10,
+    } = data;
 
-      if (!dharamshalaId) {
-        return buildResponse(
-          DataConstant.CLIENT_ERROR.BAD_REQUEST,
-          "Dharamshala is required",
-          null
-        );
-      }
-
-      const filter = {
-        dharamshalaId,
-        statusFlag: 1,
-        status: "SUCCESS",
-      };
-
-      if (bankAccountId) {
-        filter.bankAccountId =
-          bankAccountId;
-      }
-
-      if (
-        fromDate ||
-        toDate
-      ) {
-        filter.transactionDate =
-          {};
-
-        if (fromDate) {
-          filter.transactionDate.$gte =
-            new Date(fromDate);
-        }
-
-        if (toDate) {
-          const endDate =
-            new Date(toDate);
-
-          endDate.setHours(
-            23,
-            59,
-            59,
-            999
-          );
-
-          filter.transactionDate.$lte =
-            endDate;
-        }
-      }
-
-      const totalCount =
-        await DharamshalaLedger.countDocuments(
-          filter
-        );
-
-      const ledgerEntries =
-        await DharamshalaLedger.find(
-          filter
-        )
-          .populate(
-            "bankAccountId",
-            "accountName bankName accountNumber"
-          )
-          .sort({
-            transactionDate:
-              -1,
-          })
-          .skip(
-            pageIndex *
-              pageSize
-          )
-          .limit(pageSize)
-          .lean();
-
-      let totalCredit =
-        0;
-
-      let totalDebit =
-        0;
-
-      const summaryEntries =
-        await DharamshalaLedger.find(
-          filter
-        )
-          .select(
-            "creditAmount debitAmount"
-          )
-          .lean();
-
-      summaryEntries.forEach(
-        (entry) => {
-          totalCredit +=
-            entry.creditAmount ||
-            0;
-
-          totalDebit +=
-            entry.debitAmount ||
-            0;
-        }
-      );
-
-      let openingBalance =
-        0;
-
-      let closingBalance =
-        0;
-
-      if (bankAccountId) {
-        const bankAccount =
-          await DharamshalaBankAccount.findById(
-            bankAccountId
-          );
-
-        if (bankAccount) {
-          closingBalance =
-            bankAccount.currentBalance;
-
-          openingBalance =
-            closingBalance +
-            totalDebit -
-            totalCredit;
-        }
-      }
-
-      const statement =
-        ledgerEntries.map(
-          (entry) => ({
-            transactionDate:
-              entry.transactionDate,
-
-            voucherNumber:
-              entry.voucherNumber,
-
-            transactionNumber:
-              entry.transactionNumber,
-
-            category:
-              entry.category,
-
-            description:
-              entry.description,
-
-            credit:
-              entry.creditAmount,
-
-            debit:
-              entry.debitAmount,
-
-            runningBalance:
-              entry.runningBalance,
-
-            bankAccount:
-              entry.bankAccountId,
-          })
-        );
-
+    if (!dharamshalaId) {
       return buildResponse(
-        DataConstant.SUCCESS.OK,
-        "Bank statement fetched successfully",
-        {
-          openingBalance,
-          closingBalance,
-          totalCredit,
-          totalDebit,
-          totalCount,
-          pageIndex,
-          pageSize,
-          data: statement,
-        }
-      );
-    } catch (err) {
-      logger.error(
-        "getBankStatement service error",
-        {
-          error: err.message,
-          stack: err.stack,
-        }
-      );
-
-      return buildResponse(
-        DataConstant.SERVER_ERROR.SERVER_ERROR,
-        err.message,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Dharamshala is required",
         null
       );
     }
-  };
+
+    const dharamshala =
+      await Dharamshala.findById(dharamshalaId)
+        .select(
+          "name address mobileNumber alternateMobileNumber email website establishedYear profileImage bannerImage"
+        )
+        .lean();
+
+    if (!dharamshala) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
+        "Dharamshala not found",
+        null
+      );
+    }
+
+    let bankAccount = null;
+
+    if (bankAccountId) {
+      bankAccount =
+        await DharamshalaBankAccount.findById(bankAccountId)
+          .select(
+            "accountName bankName branchName accountNumber ifscCode accountType openingBalance currentBalance balanceAsOn isPrimary accountHolderName remarks"
+          )
+          .lean();
+
+      if (!bankAccount) {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.NOT_FOUND,
+          "Bank account not found",
+          null
+        );
+      }
+    }
+
+    const filter = {
+      dharamshalaId,
+      statusFlag: 1,
+      status: "SUCCESS",
+    };
+
+    if (bankAccountId) {
+      filter.bankAccountId = bankAccountId;
+    }
+
+    if (fromDate || toDate) {
+      filter.transactionDate = {};
+
+      if (fromDate) {
+        filter.transactionDate.$gte = new Date(fromDate);
+      }
+
+      if (toDate) {
+        const endDate = new Date(toDate);
+        endDate.setHours(23, 59, 59, 999);
+        filter.transactionDate.$lte = endDate;
+      }
+    }
+
+    const skip = Number(pageIndex) * Number(pageSize);
+    const limit = Number(pageSize);
+
+    const totalCount = await DharamshalaLedger.countDocuments(filter);
+
+    const ledgerEntries = await DharamshalaLedger.find(filter)
+      //.populate("bankAccountId", "accountName bankName accountNumber")
+      .sort({ transactionDate: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const summaryEntries = await DharamshalaLedger.find(filter)
+      .select("creditAmount debitAmount")
+      .lean();
+
+    let totalCredit = 0;
+    let totalDebit = 0;
+
+    summaryEntries.forEach((entry) => {
+      totalCredit += entry.creditAmount || 0;
+      totalDebit += entry.debitAmount || 0;
+    });
+
+    let openingBalance = 0;
+    let closingBalance = 0;
+
+    if (bankAccount) {
+      closingBalance = bankAccount.currentBalance || 0;
+      openingBalance = closingBalance + totalDebit - totalCredit;
+    }
+
+    const statement = ledgerEntries.map((entry) => ({
+      transactionDate: entry.transactionDate,
+      voucherNumber: entry.voucherNumber,
+      transactionNumber: entry.transactionNumber,
+      category: entry.category,
+      description: entry.description,
+      credit: entry.creditAmount,
+      debit: entry.debitAmount,
+      runningBalance: entry.runningBalance,
+      
+    }));
+
+    return buildResponse(
+      DataConstant.SUCCESS.OK,
+      "Bank statement fetched successfully",
+      {
+        dharamshala,
+        bankAccount,
+        openingBalance,
+        closingBalance,
+        totalCredit,
+        totalDebit,
+        totalCount,
+        pageIndex: Number(pageIndex),
+        pageSize: Number(pageSize),
+        data: statement,
+      }
+    );
+  } catch (err) {
+    logger.error("getBankStatement service error", {
+      error: err.message,
+      stack: err.stack,
+    });
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+};
 
 
 /* ─────────────────────────────────────
