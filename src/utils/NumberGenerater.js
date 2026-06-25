@@ -7,6 +7,8 @@ const DharamshalaVoucher =
 const DharamshalaLedger =
   require("../models/DharamshalaLedger");
 
+const DharamshalaExpense = require("../models/DharamshalaExpense");
+
 /**
  * Format:
  * DR-2026-06-00001
@@ -65,8 +67,21 @@ async function generateLedgerNumber() {
   ).padStart(5, "0")}`;
 }
 
+async function generateExpenseNumber() {
+
+  const { year, month } =
+    getYearMonth();
+  const count =
+    await DharamshalaExpense.countDocuments();
+
+  return `EXP-${year}-${month}-${String(
+    count + 1
+  ).padStart(5, "0")}`;
+}
+
 module.exports = {
   generateReceiptNumber,
   generateVoucherNumber,
   generateLedgerNumber,
+  generateExpenseNumber
 };

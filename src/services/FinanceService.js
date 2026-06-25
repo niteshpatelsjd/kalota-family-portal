@@ -33,23 +33,12 @@ const FinanceConstant =
   require("../constants/DataConstant");
 
 
-async function generateReceiptNumber() {
-  const count = await DharamshalaDonation.countDocuments();
-
-  return `DR-${new Date().getFullYear()}-${String(count + 1).padStart(
-    5,
-    "0"
-  )}`;
-}
-
-async function generateLedgerNumber() {
-  const count =
-    await DharamshalaLedger.countDocuments();
-
-  return `LED${String(
-    count + 1
-  ).padStart(6, "0")}`;
-}
+const {
+  generateReceiptNumber,
+  generateVoucherNumber,
+  generateLedgerNumber,
+  generateExpenseNumber,
+} = require("../utils/NumberGenerater");
 
 /* ─────────────────────────────────────
    ADD / UPDATE BANK ACCOUNT
@@ -789,168 +778,248 @@ exports.getAllVouchers =
   };
 
 
-exports.updateVoucherStatus =
-  async (data) => {
-    try {
-      const {
-        voucherId,
-        status,
-        approvedAmount,
-        statusReason,
-        statusUpdatedBy,
-      } = data;
+exports.updateVoucherStatus = async (data) => {
+  const session = await mongoose.startSession();
 
-      if (!voucherId) {
-        return buildResponse(
-          DataConstant.CLIENT_ERROR.BAD_REQUEST,
-          "Voucher Id is required",
-          null
-        );
-      }
+  try {
+    session.startTransaction();
 
-      if (!status) {
-        return buildResponse(
-          DataConstant.CLIENT_ERROR.BAD_REQUEST,
-          "Status is required",
-          null
-        );
-      }
+    const {
+      voucherId,
+      status,
+      approvedAmount,
+      statusReason,
+      statusUpdatedBy,
+      bankAccountId,
+      referenceNumber = "",
+    } = data;
 
-      const allowedStatuses = [
-        "APPROVED",
-        "REJECTED",
-        "CANCELLED",
-      ];
-
-      if (
-        !allowedStatuses.includes(
-          status
-        )
-      ) {
-        return buildResponse(
-          DataConstant.CLIENT_ERROR.BAD_REQUEST,
-          FinanceConstant.MESSAGES.INVALID_VOUCHER_STATUS,
-          null
-        );
-      }
-
-      const voucher =
-        await DharamshalaVoucher.findById(
-          voucherId
-        );
-
-      if (!voucher) {
-        return buildResponse(
-          DataConstant.CLIENT_ERROR.NOT_FOUND,
-          FinanceConstant.MESSAGES.VOUCHER_NOT_FOUND,
-          null
-        );
-      }
-
-      if (
-        [
-          "REJECTED",
-          "CANCELLED",
-        ].includes(
-          voucher.status
-        )
-      ) {
-        return buildResponse(
-          DataConstant.CLIENT_ERROR.BAD_REQUEST,
-          FinanceConstant.MESSAGES.VOUCHER_ALREADY_PROCESSED,
-          null
-        );
-      }
-
-      if (
-        voucher.status ===
-        "APPROVED"
-      ) {
-        return buildResponse(
-          DataConstant.CLIENT_ERROR.BAD_REQUEST,
-          "Voucher already approved",
-          null
-        );
-      }
-
-      voucher.status =
-        status;
-
-      voucher.statusReason =
-        statusReason || "";
-
-      voucher.statusUpdatedBy =
-        statusUpdatedBy ||
-        null;
-
-      voucher.statusUpdatedAt =
-        new Date();
-
-      if (
-        status ===
-        "APPROVED"
-      ) {
-        voucher.approvedAmount =
-          approvedAmount ||
-          voucher.requestedAmount;
-
-        voucher.approvedBy =
-          statusUpdatedBy;
-
-        voucher.approvedAt =
-          new Date();
-      }
-
-      await voucher.save();
-
-      let message =
-        DataConstant.MESSAGES.UPDATE;
-
-      if (
-        status ===
-        "APPROVED"
-      ) {
-        message =
-          FinanceConstant.MESSAGES.VOUCHER_APPROVED;
-      }
-
-      if (
-        status ===
-        "REJECTED"
-      ) {
-        message =
-          FinanceConstant.MESSAGES.VOUCHER_REJECTED;
-      }
-
-      if (
-        status ===
-        "CANCELLED"
-      ) {
-        message =
-          FinanceConstant.MESSAGES.VOUCHER_CANCELLED;
-      }
-
+    if (!voucherId) {
+      await session.abortTransaction();
       return buildResponse(
-        DataConstant.SUCCESS.OK,
-        message,
-        voucher
-      );
-    } catch (err) {
-      logger.error(
-        "updateVoucherStatus service error",
-        {
-          error: err.message,
-          stack: err.stack,
-        }
-      );
-
-      return buildResponse(
-        DataConstant.SERVER_ERROR.SERVER_ERROR,
-        err.message,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Voucher Id is required",
         null
       );
     }
-  };
+
+    if (!status) {
+      await session.abortTransaction();
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Status is required",
+        null
+      );
+    }
+
+    const allowedStatuses = ["APPROVED", "REJECTED", "CANCELLED"];
+
+    if (!allowedStatuses.includes(status)) {
+      await session.abortTransaction();
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        FinanceConstant.MESSAGES.INVALID_VOUCHER_STATUS,
+        null
+      );
+    }
+
+    const voucher = await DharamshalaVoucher.findById(voucherId).session(
+      session
+    );
+
+    if (!voucher) {
+      await session.abortTransaction();
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
+        FinanceConstant.MESSAGES.VOUCHER_NOT_FOUND,
+        null
+      );
+    }
+
+    if (["REJECTED", "CANCELLED"].includes(voucher.status)) {
+      await session.abortTransaction();
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        FinanceConstant.MESSAGES.VOUCHER_ALREADY_PROCESSED,
+        null
+      );
+    }
+
+    if (voucher.status === "APPROVED") {
+      await session.abortTransaction();
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Voucher already approved",
+        null
+      );
+    }
+
+    let ledger = null;
+
+    if (status === "APPROVED") {
+      const finalApprovedAmount =
+        Number(approvedAmount || voucher.requestedAmount || 0);
+
+      if (finalApprovedAmount <= 0) {
+        await session.abortTransaction();
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
+          "Approved amount should be greater than zero",
+          null
+        );
+      }
+
+      const shouldCreateLedger =
+        voucher.voucherType === "PAYMENT" &&
+        ["ADVANCE", "EXPENSE", "OTHER"].includes(voucher.category);
+
+      if (shouldCreateLedger) {
+        if (!bankAccountId) {
+          await session.abortTransaction();
+          return buildResponse(
+            DataConstant.CLIENT_ERROR.BAD_REQUEST,
+            "bankAccountId is required for payment voucher approval",
+            null
+          );
+        }
+
+        const existingLedger = await DharamshalaLedger.findOne({
+          voucherId: voucher._id,
+          statusFlag: 1,
+        }).session(session);
+
+        if (existingLedger) {
+          await session.abortTransaction();
+          return buildResponse(
+            DataConstant.CLIENT_ERROR.BAD_REQUEST,
+            "Ledger already exists for this voucher",
+            null
+          );
+        }
+
+        const bankAccount = await DharamshalaBankAccount.findById(
+          bankAccountId
+        ).session(session);
+
+        if (!bankAccount) {
+          await session.abortTransaction();
+          return buildResponse(
+            DataConstant.CLIENT_ERROR.NOT_FOUND,
+            "Bank account not found",
+            null
+          );
+        }
+
+        const currentBalance = Number(bankAccount.currentBalance || 0);
+
+        if (currentBalance < finalApprovedAmount) {
+          await session.abortTransaction();
+          return buildResponse(
+            DataConstant.CLIENT_ERROR.BAD_REQUEST,
+            "Insufficient bank balance",
+            null
+          );
+        }
+
+        const newBalance = currentBalance - finalApprovedAmount;
+        const ledgerNumber = await generateLedgerNumber();
+
+        const ledgerResult = await DharamshalaLedger.create(
+          [
+            {
+              dharamshalaId: voucher.dharamshalaId,
+              bankAccountId,
+              voucherId: voucher._id,
+              voucherNumber: voucher.voucherNumber,
+              ledgerNumber,
+
+              transactionType: "DEBIT",
+              category: voucher.category,
+
+              amount: finalApprovedAmount,
+              creditAmount: 0,
+              debitAmount: finalApprovedAmount,
+              runningBalance: newBalance,
+
+              transactionDate: new Date(),
+              description: `${voucher.category} payment approved - ${voucher.voucherNumber}`,
+              referenceNumber: referenceNumber || voucher.voucherNumber,
+
+              committeeMemberId: voucher.committeeMemberId || voucher.requestedBy || null,
+
+              fromAccountType: "BANK",
+              fromAccountId: bankAccountId,
+              toAccountType:
+                voucher.category === "ADVANCE"
+                  ? "MEMBER"
+                  : voucher.category === "EXPENSE"
+                    ? "VENDOR"
+                    : "OTHER",
+              toAccountId: voucher.requestedBy || null,
+
+              createdBy: statusUpdatedBy || null,
+            },
+          ],
+          { session }
+        );
+
+        ledger = ledgerResult[0];
+
+        bankAccount.currentBalance = newBalance;
+        await bankAccount.save({ session });
+
+        voucher.ledgerId = ledger._id;
+      }
+
+      voucher.approvedAmount = finalApprovedAmount;
+      voucher.approvedBy = statusUpdatedBy;
+      voucher.approvedAt = new Date();
+    }
+
+    voucher.status = status;
+    voucher.statusReason = statusReason || "";
+    voucher.statusUpdatedBy = statusUpdatedBy || null;
+    voucher.statusUpdatedAt = new Date();
+
+    await voucher.save({ session });
+
+    await session.commitTransaction();
+
+    let message = DataConstant.MESSAGES.UPDATE;
+
+    if (status === "APPROVED") {
+      message = FinanceConstant.MESSAGES.VOUCHER_APPROVED;
+    }
+
+    if (status === "REJECTED") {
+      message = FinanceConstant.MESSAGES.VOUCHER_REJECTED;
+    }
+
+    if (status === "CANCELLED") {
+      message = FinanceConstant.MESSAGES.VOUCHER_CANCELLED;
+    }
+
+    return buildResponse(DataConstant.SUCCESS.OK, message, {
+      voucher,
+      ledger,
+    });
+  } catch (err) {
+    await session.abortTransaction();
+
+    logger.error("updateVoucherStatus service error", {
+      error: err.message,
+      stack: err.stack,
+    });
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
+      err.message,
+      null
+    );
+  } finally {
+    session.endSession();
+  }
+};
 
 
 exports.createLedgerEntry =
@@ -2117,19 +2186,6 @@ const totalExpenses =
 };
 
 
-/* ─────────────────────────────────────
-   GENERATE EXPENSE NUMBER
-───────────────────────────────────── */
-
-async function generateExpenseNumber() {
-
-  const count =
-    await DharamshalaExpense.countDocuments();
-
-  return `EXP-${String(
-    count + 1
-  ).padStart(6, "0")}`;
-}
 
 /* ─────────────────────────────────────
    ADD EXPENSE
