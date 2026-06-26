@@ -2580,12 +2580,9 @@ exports.getExpenseById =
     }
   };
 
+
 exports.getAllExpenses = async (data) => {
   try {
-    logger.info("getAllExpenses service started", {
-      request: data,
-    });
-
     const {
       pageIndex = 0,
       pageSize = 10,
@@ -2604,7 +2601,7 @@ exports.getAllExpenses = async (data) => {
     };
 
     if (dharamshalaId) {
-      filter.dharamshalaId = dharamshalaId;
+      filter.dharamshalaId = new mongoose.Types.ObjectId(dharamshalaId);
     }
 
     if (expenseType) {
@@ -2612,7 +2609,7 @@ exports.getAllExpenses = async (data) => {
     }
 
     if (voucherId) {
-      filter.voucherId = voucherId;
+      filter.voucherId = new mongoose.Types.ObjectId(voucherId);
     }
 
     if (expenseSource) {
@@ -2625,36 +2622,11 @@ exports.getAllExpenses = async (data) => {
 
     if (searchText && searchText.trim()) {
       filter.$or = [
-        {
-          expenseNumber: {
-            $regex: searchText.trim(),
-            $options: "i",
-          },
-        },
-        {
-          title: {
-            $regex: searchText.trim(),
-            $options: "i",
-          },
-        },
-        {
-          vendorName: {
-            $regex: searchText.trim(),
-            $options: "i",
-          },
-        },
-        {
-          vendorMobile: {
-            $regex: searchText.trim(),
-            $options: "i",
-          },
-        },
-        {
-          billNumber: {
-            $regex: searchText.trim(),
-            $options: "i",
-          },
-        },
+        { expenseNumber: { $regex: searchText.trim(), $options: "i" } },
+        { title: { $regex: searchText.trim(), $options: "i" } },
+        { vendorName: { $regex: searchText.trim(), $options: "i" } },
+        { vendorMobile: { $regex: searchText.trim(), $options: "i" } },
+        { billNumber: { $regex: searchText.trim(), $options: "i" } },
       ];
     }
 
@@ -2672,28 +2644,141 @@ exports.getAllExpenses = async (data) => {
       }
     }
 
-    logger.info("Expense filter prepared", filter);
-
     const skip = Number(pageIndex) * Number(pageSize);
     const limit = Number(pageSize);
 
-    const totalElements =
-      await DharamshalaExpense.countDocuments(filter);
+    const totalElements = await DharamshalaExpense.countDocuments(filter);
 
-    const expenses = await DharamshalaExpense.find(filter)
-      .populate("voucherId", "voucherNumber category status approvedAmount settledAmount")
-      .populate("ledgerId", "ledgerNumber transactionType amount")
-      .populate("bankAccountId", "accountName bankName accountNumber")
-      .populate("createdBy", "name fullName mobileNumber profileUrl")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+    const expenses = await DharamshalaExpense.aggregate([
+      { $match: filter },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit },
 
-    logger.info("Expenses fetched successfully", {
-      totalElements,
-      returned: expenses.length,
-    });
+      {
+        $lookup: {
+          from: "dharamshala_expense_items",
+          localField: "_id",
+          foreignField: "expenseId",
+          as: "items",
+        },
+      },
+
+      {
+        $lookup: {
+          from: "dharamshala_vouchers",
+          localField: "voucherId",
+          foreignField: "_id",
+          as: "voucherId",
+        },
+      },
+      {
+        $unwind: {
+          path: "$voucherId",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      {
+        $lookup: {
+          from: "dharamshala_ledgers",
+          localField: "ledgerId",
+          foreignField: "_id",
+          as: "ledgerId",
+        },
+      },
+      {
+        $unwind: {
+          path: "$ledgerId",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      {
+        $lookup: {
+          from: "dharamshala_bank_accounts",
+          localField: "bankAccountId",
+          foreignField: "_id",
+          as: "bankAccountId",
+        },
+      },
+      {
+        $unwind: {
+          path: "$bankAccountId",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      {
+        $lookup: {
+          from: "admin_users",
+          localField: "createdBy",
+          foreignField: "_id",
+          as: "createdBy",
+        },
+      },
+      {
+        $unwind: {
+          path: "$createdBy",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      {
+        $project: {
+          dharamshalaId: 1,
+          expenseNumber: 1,
+          expenseDate: 1,
+          expenseType: 1,
+          title: 1,
+          vendorName: 1,
+          vendorMobile: 1,
+          billNumber: 1,
+          billDate: 1,
+          amount: 1,
+          expenseSource: 1,
+          paymentMode: 1,
+          description: 1,
+          attachmentUrls: 1,
+          statusFlag: 1,
+          createdAt: 1,
+          updatedAt: 1,
+
+          items: 1,
+
+          voucherId: {
+            _id: "$voucherId._id",
+            voucherNumber: "$voucherId.voucherNumber",
+            category: "$voucherId.category",
+            status: "$voucherId.status",
+            approvedAmount: "$voucherId.approvedAmount",
+            settledAmount: "$voucherId.settledAmount",
+          },
+
+          ledgerId: {
+            _id: "$ledgerId._id",
+            ledgerNumber: "$ledgerId.ledgerNumber",
+            transactionType: "$ledgerId.transactionType",
+            amount: "$ledgerId.amount",
+          },
+
+          bankAccountId: {
+            _id: "$bankAccountId._id",
+            accountName: "$bankAccountId.accountName",
+            bankName: "$bankAccountId.bankName",
+            accountNumber: "$bankAccountId.accountNumber",
+          },
+
+          createdBy: {
+            _id: "$createdBy._id",
+            name: "$createdBy.name",
+            fullName: "$createdBy.fullName",
+            mobileNumber: "$createdBy.mobileNumber",
+            profileUrl: "$createdBy.profileUrl",
+          },
+        },
+      },
+    ]);
 
     return buildResponse(
       DataConstant.SUCCESS.OK,
