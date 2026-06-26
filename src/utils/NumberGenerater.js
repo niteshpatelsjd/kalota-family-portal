@@ -9,6 +9,10 @@ const DharamshalaLedger =
 
 const DharamshalaExpense = require("../models/DharamshalaExpense");
 
+const DharamshalaAsset = require("../models/DharamshalaAsset");
+const DharamshalaInventoryItem = require("../models/DharamshalaInventoryItem");
+const DharamshalaInventoryTransaction = require("../models/DharamshalaInventoryTransaction")
+
 /**
  * Format:
  * DR-2026-06-00001
@@ -79,9 +83,107 @@ async function generateExpenseNumber() {
   ).padStart(5, "0")}`;
 }
 
+
+function padNumber(number) {
+  return String(number).padStart(5, "0");
+}
+
+async function generateAssetNumber() {
+  const { year, month } = getYearMonth();
+
+  const prefix = `AST-${year}-${month}-`;
+
+  const lastAsset = await DharamshalaAsset.findOne({
+    assetNumber: {
+      $regex: `^${prefix}`,
+    },
+  })
+    .sort({
+      createdAt: -1,
+    })
+    .select("assetNumber")
+    .lean();
+
+  let nextNumber = 1;
+
+  if (lastAsset?.assetNumber) {
+    const lastNumber = Number(lastAsset.assetNumber.split("-").pop());
+
+    if (!Number.isNaN(lastNumber)) {
+      nextNumber = lastNumber + 1;
+    }
+  }
+
+  return `${prefix}${padNumber(nextNumber)}`;
+}
+
+async function generateInventoryItemCode() {
+  const { year, month } = getYearMonth();
+
+  const prefix = `INV-${year}-${month}-`;
+
+  const lastItem = await DharamshalaInventoryItem.findOne({
+    itemCode: {
+      $regex: `^${prefix}`,
+    },
+  })
+    .sort({
+      createdAt: -1,
+    })
+    .select("itemCode")
+    .lean();
+
+  let nextNumber = 1;
+
+  if (lastItem?.itemCode) {
+    const lastNumber = Number(lastItem.itemCode.split("-").pop());
+
+    if (!Number.isNaN(lastNumber)) {
+      nextNumber = lastNumber + 1;
+    }
+  }
+
+  return `${prefix}${padNumber(nextNumber)}`;
+}
+
+async function generateStockTransactionNumber() {
+  const { year, month } = getYearMonth();
+
+  const prefix = `STK-${year}-${month}-`;
+
+  const lastTransaction =
+    await DharamshalaInventoryTransaction.findOne({
+      transactionNumber: {
+        $regex: `^${prefix}`,
+      },
+    })
+      .sort({
+        createdAt: -1,
+      })
+      .select("transactionNumber")
+      .lean();
+
+  let nextNumber = 1;
+
+  if (lastTransaction?.transactionNumber) {
+    const lastNumber = Number(
+      lastTransaction.transactionNumber.split("-").pop()
+    );
+
+    if (!Number.isNaN(lastNumber)) {
+      nextNumber = lastNumber + 1;
+    }
+  }
+
+  return `${prefix}${padNumber(nextNumber)}`;
+}
+
 module.exports = {
   generateReceiptNumber,
   generateVoucherNumber,
   generateLedgerNumber,
-  generateExpenseNumber
+  generateExpenseNumber,
+  generateAssetNumber,
+  generateInventoryItemCode,
+  generateStockTransactionNumber,
 };

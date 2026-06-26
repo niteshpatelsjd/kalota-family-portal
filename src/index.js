@@ -20,6 +20,7 @@ const financeRoutes = require("./routes/FinanceRoute");
 const postRoutes = require("./routes/PostRoute");
 const notificationRoutes = require("./routes/NotificationRoute");
 const donationRoutes = require("./routes/DonationRoute");
+const inventoryRoutes = require("./routes/InventoryRoute");
 
 const app = express();
 app.use(cors());
@@ -49,6 +50,7 @@ app.use("/admin/mobile/user", userRoutes);
 app.use("/admin/post", postRoutes);
 app.use("/admin/notification", notificationRoutes);
 app.use("/admin/donation", donationRoutes);
+app.use("/admin/inventory", inventoryRoutes);
 
 app.get("/health", (_, res) => res.json({ status: "up" }));
 
