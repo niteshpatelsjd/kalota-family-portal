@@ -12,6 +12,9 @@ const DharamshalaExpense = require("../models/DharamshalaExpense");
 const DharamshalaAsset = require("../models/DharamshalaAsset");
 const DharamshalaInventoryItem = require("../models/DharamshalaInventoryItem");
 const DharamshalaInventoryTransaction = require("../models/DharamshalaInventoryTransaction")
+const DharamshalaAssetTransaction =
+  require("../models/DharamshalaAssetTransaction");
+
 
 /**
  * Format:
@@ -86,6 +89,40 @@ async function generateExpenseNumber() {
 
 function padNumber(number) {
   return String(number).padStart(5, "0");
+}
+
+
+
+async function generateAssetTransactionNumber() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+
+  const prefix = `AST-TXN-${year}-${month}-`;
+
+  const last =
+    await DharamshalaAssetTransaction.findOne({
+      transactionNumber: {
+        $regex: `^${prefix}`,
+      },
+    })
+      .sort({ createdAt: -1 })
+      .select("transactionNumber")
+      .lean();
+
+  let nextNumber = 1;
+
+  if (last?.transactionNumber) {
+    const lastNumber = Number(
+      last.transactionNumber.split("-").pop()
+    );
+
+    if (!Number.isNaN(lastNumber)) {
+      nextNumber = lastNumber + 1;
+    }
+  }
+
+  return `${prefix}${String(nextNumber).padStart(5, "0")}`;
 }
 
 async function generateAssetNumber() {
@@ -186,4 +223,5 @@ module.exports = {
   generateAssetNumber,
   generateInventoryItemCode,
   generateStockTransactionNumber,
+  generateAssetTransactionNumber,
 };

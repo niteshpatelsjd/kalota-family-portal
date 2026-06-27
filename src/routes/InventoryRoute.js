@@ -838,4 +838,196 @@ router.get(
   "/getStockTransactionById/:id",
   inventoryController.getStockTransactionByIdController
 );
+
+
+/**
+ * @swagger
+ * /admin/inventory/addAssetTransaction:
+ *   post:
+ *     summary: Add Asset Transaction
+ *     tags: [Inventory Controller]
+ *     description: |
+ *       Add a new transaction against an existing asset.
+ *
+ *       Transaction Types:
+ *       - OPENING
+ *       - DONATION
+ *       - PURCHASE
+ *       - TRANSFER_IN
+ *       - TRANSFER_OUT
+ *       - DAMAGED
+ *       - LOST
+ *       - REPAIRED
+ *       - DISPOSED
+ *       - ADJUSTMENT_IN
+ *       - ADJUSTMENT_OUT
+ *
+ *       This API automatically updates the Asset Master quantity.
+ *
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - dharamshalaId
+ *               - assetId
+ *               - transactionType
+ *               - quantity
+ *               - createdBy
+ *             properties:
+ *               dharamshalaId:
+ *                 type: string
+ *                 example: "6a299762c760d49fa2a5af44"
+ *
+ *               assetId:
+ *                 type: string
+ *                 example: "6a4b132b98dc4bb4cf8a1121"
+ *
+ *               transactionType:
+ *                 type: string
+ *                 enum:
+ *                   - OPENING
+ *                   - DONATION
+ *                   - PURCHASE
+ *                   - TRANSFER_IN
+ *                   - TRANSFER_OUT
+ *                   - DAMAGED
+ *                   - LOST
+ *                   - REPAIRED
+ *                   - DISPOSED
+ *                   - ADJUSTMENT_IN
+ *                   - ADJUSTMENT_OUT
+ *                 example: DONATION
+ *
+ *               quantity:
+ *                 type: number
+ *                 example: 20
+ *
+ *               unit:
+ *                 type: string
+ *                 example: Piece
+ *
+ *               rate:
+ *                 type: number
+ *                 example: 2500
+ *
+ *               amount:
+ *                 type: number
+ *                 example: 50000
+ *
+ *               donorName:
+ *                 type: string
+ *                 example: Dilip Patel
+ *
+ *               donorMobile:
+ *                 type: string
+ *                 example: "9876543210"
+ *
+ *               supplierName:
+ *                 type: string
+ *                 example: Krishna Traders
+ *
+ *               transactionDate:
+ *                 type: string
+ *                 format: date-time
+ *
+ *               expenseId:
+ *                 type: string
+ *                 nullable: true
+ *
+ *               donationId:
+ *                 type: string
+ *                 nullable: true
+ *
+ *               referenceNumber:
+ *                 type: string
+ *                 example: INV-101
+ *
+ *               remarks:
+ *                 type: string
+ *                 example: 20 ceiling fans donated
+ *
+ *               createdBy:
+ *                 type: string
+ *                 example: "6a33de68bc98a5d2ce54e652"
+ *
+ *     responses:
+ *       200:
+ *         description: Asset transaction added successfully.
+ */
+router.post(
+  "/addAssetTransaction",
+  inventoryController.addAssetTransactionController
+);
+
+
+/**
+ * @swagger
+ * /admin/inventory/getAssetTransactions:
+ *   get:
+ *     summary: Get Asset Transactions
+ *     tags: [Inventory Controller]
+ *     description: Get paginated list of asset transactions with filters.
+ *
+ *     parameters:
+ *       - in: query
+ *         name: pageIndex
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *
+ *       - in: query
+ *         name: dharamshalaId
+ *         schema:
+ *           type: string
+ *
+ *       - in: query
+ *         name: assetId
+ *         schema:
+ *           type: string
+ *
+ *       - in: query
+ *         name: transactionType
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - OPENING
+ *             - DONATION
+ *             - PURCHASE
+ *             - TRANSFER_IN
+ *             - TRANSFER_OUT
+ *             - DAMAGED
+ *             - LOST
+ *             - REPAIRED
+ *             - DISPOSED
+ *             - ADJUSTMENT_IN
+ *             - ADJUSTMENT_OUT
+ *
+ *       - in: query
+ *         name: searchText
+ *         schema:
+ *           type: string
+ *
+ *       - in: query
+ *         name: statusFlag
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *
+ *     responses:
+ *       200:
+ *         description: Asset transactions fetched successfully.
+ */
+router.get(
+  "/getAssetTransactions",
+  inventoryController.getAssetTransactionsController
+);
 module.exports = router;

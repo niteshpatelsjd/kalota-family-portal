@@ -1,7 +1,21 @@
 const inventoryService = require("../services/InventoryService");
 
 
+exports.addAssetTransactionController =
+  async (req, res) => {
+    const result =
+      await inventoryService.addAssetTransaction(req.body);
 
+    return res.status(200).json(result);
+  };
+
+exports.getAssetTransactionsController =
+  async (req, res) => {
+    const result =
+      await inventoryService.getAssetTransactions(req.query);
+
+    return res.status(result.responseCode).json(result);
+  };
 
 exports.addStockTransactionController = async (req, res) => {
   const result =

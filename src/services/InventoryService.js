@@ -1,6 +1,9 @@
 const DharamshalaAsset =
   require("../models/DharamshalaAsset");
 
+const DharamshalaAssetTransaction =
+  require("../models/DharamshalaAssetTransaction");
+
 const DharamshalaInventoryItem =
   require("../models/DharamshalaInventoryItem");
 
@@ -46,28 +49,28 @@ exports.addStockTransaction = async (data) => {
 
     if (!dharamshalaId) {
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "dharamshalaId is required"
       );
     }
 
     if (!inventoryItemId) {
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "inventoryItemId is required"
       );
     }
 
     if (!transactionType) {
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "transactionType is required"
       );
     }
 
     if (!quantity || Number(quantity) <= 0) {
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "quantity should be greater than zero"
       );
     }
@@ -77,7 +80,7 @@ exports.addStockTransaction = async (data) => {
 
     if (!item) {
       return buildResponse(
-        DataConstant.NOT_FOUND,
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
         "Inventory item not found"
       );
     }
@@ -108,7 +111,7 @@ exports.addStockTransaction = async (data) => {
     } else if (decreaseTypes.includes(transactionType)) {
       if (stockBefore < qty) {
         return buildResponse(
-          DataConstant.BAD_REQUEST,
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
           "Insufficient stock"
         );
       }
@@ -116,7 +119,7 @@ exports.addStockTransaction = async (data) => {
       stockAfter = stockBefore - qty;
     } else {
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "Invalid transactionType"
       );
     }
@@ -300,7 +303,7 @@ exports.getStockTransactionById = async (id) => {
   try {
     if (!id) {
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "Stock transaction id is required"
       );
     }
@@ -322,7 +325,7 @@ exports.getStockTransactionById = async (id) => {
 
     if (!transaction) {
       return buildResponse(
-        DataConstant.NOT_FOUND,
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
         "Stock transaction not found"
       );
     }
@@ -365,14 +368,14 @@ exports.addOrUpdateInventoryItem =
 
       if (!itemName) {
         return buildResponse(
-          DataConstant.BAD_REQUEST,
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
           "itemName is required"
         );
       }
 
       if (!category) {
         return buildResponse(
-          DataConstant.BAD_REQUEST,
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
           "category is required"
         );
       }
@@ -383,7 +386,7 @@ exports.addOrUpdateInventoryItem =
 
         if (!item) {
           return buildResponse(
-            DataConstant.NOT_FOUND,
+            DataConstant.CLIENT_ERROR.NOT_FOUND,
             "Inventory item not found"
           );
         }
@@ -408,7 +411,7 @@ exports.addOrUpdateInventoryItem =
 
       if (!dharamshalaId) {
         return buildResponse(
-          DataConstant.BAD_REQUEST,
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
           "dharamshalaId is required"
         );
       }
@@ -587,7 +590,7 @@ exports.addOrUpdateInventoryItem =
     try {
       if (!id) {
         return buildResponse(
-          DataConstant.BAD_REQUEST,
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
           "Inventory item id is required"
         );
       }
@@ -607,7 +610,7 @@ exports.addOrUpdateInventoryItem =
 
       if (!item) {
         return buildResponse(
-          DataConstant.NOT_FOUND,
+          DataConstant.CLIENT_ERROR.NOT_FOUND,
           "Inventory item not found"
         );
       }
@@ -646,7 +649,7 @@ exports.addOrUpdateInventoryItem =
 
       if (!id) {
         return buildResponse(
-          DataConstant.BAD_REQUEST,
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
           "Inventory item id is required"
         );
       }
@@ -656,7 +659,7 @@ exports.addOrUpdateInventoryItem =
 
       if (!item) {
         return buildResponse(
-          DataConstant.NOT_FOUND,
+          DataConstant.CLIENT_ERROR.NOT_FOUND,
           "Inventory item not found"
         );
       }
@@ -690,92 +693,7 @@ exports.addOrUpdateInventoryItem =
       );
     }
   };
-exports.addAsset = async (data) => {
-  try {
-    const {
-      dharamshalaId,
-      assetName,
-      assetCategory,
-      sourceType,
-      donorName = "",
-      donorMobile = "",
-      supplierName = "",
-      quantity = 1,
-      unit = "Piece",
-      purchaseCost = 0,
-      currentValue = 0,
-      purchaseDate,
-      donationDate,
-      condition = "GOOD",
-      location = "",
-      expenseId = null,
-      donationId = null,
-      imageUrls = [],
-      remarks = "",
-      createdBy,
-    } = data;
 
-    if (!dharamshalaId) {
-      return buildResponse(DataConstant.BAD_REQUEST, "dharamshalaId is required");
-    }
-
-    if (!assetName) {
-      return buildResponse(DataConstant.BAD_REQUEST, "assetName is required");
-    }
-
-    if (!assetCategory) {
-      return buildResponse(DataConstant.BAD_REQUEST, "assetCategory is required");
-    }
-
-    if (!sourceType) {
-      return buildResponse(DataConstant.BAD_REQUEST, "sourceType is required");
-    }
-
-    const assetNumber = await generateAssetNumber();
-
-    const asset = await DharamshalaAsset.create({
-      dharamshalaId,
-      assetNumber,
-      assetName,
-      assetCategory,
-      sourceType,
-      donorName,
-      donorMobile,
-      supplierName,
-      quantity,
-      unit,
-      purchaseCost,
-      currentValue,
-      purchaseDate: purchaseDate || null,
-      donationDate: donationDate || null,
-      condition,
-      location,
-      expenseId,
-      donationId,
-      imageUrls,
-      remarks,
-      createdBy,
-    });
-
-    return buildResponse(
-      DataConstant.SUCCESS.OK,
-      "Asset added successfully",
-      asset
-    );
-  } catch (err) {
-    logger.error("addAsset service error", {
-      error: err.message,
-      stack: err.stack,
-      request: data,
-    });
-
-    return buildResponse(
-      DataConstant.SERVER_ERROR.SERVER_ERROR,
-      err.message,
-      null
-    );
-  }
-};
 
 exports.getAllAssets = async (data) => {
   try {
@@ -856,7 +774,7 @@ exports.getAllAssets = async (data) => {
 exports.getAssetById = async (id) => {
   try {
     if (!id) {
-      return buildResponse(DataConstant.BAD_REQUEST, "Asset id is required");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Asset id is required");
     }
 
     const asset = await DharamshalaAsset.findById(id)
@@ -868,7 +786,7 @@ exports.getAssetById = async (id) => {
       .lean();
 
     if (!asset) {
-      return buildResponse(DataConstant.NOT_FOUND, "Asset not found");
+      return buildResponse(DataConstant.CLIENT_ERROR.NOT_FOUND, "Asset not found");
     }
 
     return buildResponse(
@@ -891,79 +809,18 @@ exports.getAssetById = async (id) => {
   }
 };
 
-exports.updateAsset = async (id, data) => {
-  try {
-    if (!id) {
-      return buildResponse(DataConstant.BAD_REQUEST, "Asset id is required");
-    }
-
-    const asset = await DharamshalaAsset.findById(id);
-
-    if (!asset) {
-      return buildResponse(DataConstant.NOT_FOUND, "Asset not found");
-    }
-
-    const allowedFields = [
-      "assetName",
-      "assetCategory",
-      "sourceType",
-      "donorName",
-      "donorMobile",
-      "supplierName",
-      "quantity",
-      "unit",
-      "purchaseCost",
-      "currentValue",
-      "purchaseDate",
-      "donationDate",
-      "condition",
-      "location",
-      "imageUrls",
-      "remarks",
-      "updatedBy",
-    ];
-
-    allowedFields.forEach((field) => {
-      if (data[field] !== undefined) {
-        asset[field] = data[field];
-      }
-    });
-
-    await asset.save();
-
-    return buildResponse(
-      DataConstant.SUCCESS.OK,
-      "Asset updated successfully",
-      asset
-    );
-  } catch (err) {
-    logger.error("updateAsset service error", {
-      error: err.message,
-      stack: err.stack,
-      id,
-      request: data,
-    });
-
-    return buildResponse(
-      DataConstant.SERVER_ERROR.SERVER_ERROR,
-      err.message,
-      null
-    );
-  }
-};
-
 exports.blockUnblockAsset = async (data) => {
   try {
     const { id, statusFlag = 1, updatedBy } = data;
 
     if (!id) {
-      return buildResponse(DataConstant.BAD_REQUEST, "Asset id is required");
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Asset id is required");
     }
 
     const asset = await DharamshalaAsset.findById(id);
 
     if (!asset) {
-      return buildResponse(DataConstant.NOT_FOUND, "Asset not found");
+      return buildResponse(DataConstant.CLIENT_ERROR.NOT_FOUND, "Asset not found");
     }
 
     asset.statusFlag = Number(statusFlag);
@@ -994,59 +851,42 @@ exports.blockUnblockAsset = async (data) => {
 };
 
 
-exports.addOrUpdateAsset = async (data, files = {}) => {
-  try {
-    const {
-      id,
-      dharamshalaId,
-      assetName,
-      assetCategory,
-      sourceType,
-      donorName = "",
-      donorMobile = "",
-      supplierName = "",
-      quantity = 1,
-      unit = "Piece",
-      purchaseCost = 0,
-      currentValue = 0,
-      purchaseDate,
-      donationDate,
-      condition = "GOOD",
-      location = "",
-      expenseId = null,
-      donationId = null,
-      remarks = "",
-      createdBy,
-      updatedBy,
-      existingMediaUrls,
-    } = data;
+exports.addOrUpdateAsset =
+  async (data, files = {}) => {
+    try {
+      const {
+        id,
+        dharamshalaId,
+        assetName,
+        assetCategory,
+        unit = "Piece",
+        currentValue = 0,
+        condition = "GOOD",
+        location = "",
+        remarks = "",
+        createdBy,
+        updatedBy,
+        existingMediaUrls,
+      } = data;
 
-    if (!assetName) {
-      return buildResponse(
-        DataConstant.BAD_REQUEST,
-        "assetName is required"
-      );
-    }
+      if (!assetName) {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
+          "assetName is required"
+        );
+      }
 
-    if (!assetCategory) {
-      return buildResponse(
-        DataConstant.BAD_REQUEST,
-        "assetCategory is required"
-      );
-    }
+      if (!assetCategory) {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
+          "assetCategory is required"
+        );
+      }
 
-    if (!sourceType) {
-      return buildResponse(
-        DataConstant.BAD_REQUEST,
-        "sourceType is required"
-      );
-    }
+      const uploadedUrls = [];
+      const mediaFiles = files?.mediaFiles || [];
 
-    const uploadedUrls = [];
-
-    const mediaFiles = files?.mediaFiles || [];
-
-    for (const file of mediaFiles) {
+      for (const file of mediaFiles) {
 
         
       const uploaded = await uploadToCloudinary(file.path, "inventory/assets");
@@ -1057,113 +897,368 @@ exports.addOrUpdateAsset = async (data, files = {}) => {
       }
     }
 
-    let oldMediaUrls = [];
+      let oldMediaUrls = [];
 
-    if (existingMediaUrls) {
-      if (Array.isArray(existingMediaUrls)) {
-        oldMediaUrls = existingMediaUrls;
-      } else {
+      if (existingMediaUrls) {
         try {
           oldMediaUrls = JSON.parse(existingMediaUrls);
         } catch {
           oldMediaUrls = [existingMediaUrls];
         }
       }
+
+      const imageUrls = [
+        ...oldMediaUrls,
+        ...uploadedUrls,
+      ];
+
+      if (id) {
+        const asset =
+          await DharamshalaAsset.findById(id);
+
+        if (!asset) {
+          return buildResponse(
+            DataConstant.CLIENT_ERROR.NOT_FOUND,
+            "Asset not found"
+          );
+        }
+
+        asset.assetName = assetName;
+        asset.assetCategory = assetCategory;
+        asset.unit = unit;
+        asset.currentValue = Number(currentValue || 0);
+        asset.condition = condition;
+        asset.location = location;
+        asset.remarks = remarks;
+        asset.imageUrls = imageUrls;
+        asset.updatedBy = updatedBy || createdBy;
+
+        await asset.save();
+
+        return buildResponse(
+          DataConstant.SUCCESS.OK,
+          "Asset updated successfully",
+          asset
+        );
+      }
+
+      if (!dharamshalaId) {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
+          "dharamshalaId is required"
+        );
+      }
+
+      const assetNumber =
+        await generateAssetNumber();
+
+      const asset =
+        await DharamshalaAsset.create({
+          dharamshalaId,
+          assetNumber,
+          assetName,
+          assetCategory,
+          unit,
+          currentValue: Number(currentValue || 0),
+          condition,
+          location,
+          remarks,
+          imageUrls,
+          createdBy,
+        });
+
+      return buildResponse(
+        DataConstant.SUCCESS.OK,
+        "Asset added successfully",
+        asset
+      );
+    } catch (err) {
+      logger.error("addOrUpdateAsset error", {
+        error: err.message,
+        stack: err.stack,
+        request: data,
+      });
+
+      return buildResponse(
+        DataConstant.SERVER_ERROR.SERVER_ERROR,
+        err.message,
+        null
+      );
     }
+  };
 
-    const mediaUrls = [
-      ...oldMediaUrls,
-      ...uploadedUrls,
-    ];
 
-    if (id) {
-      const asset = await DharamshalaAsset.findById(id);
+exports.addAssetTransaction =
+  async (data) => {
+    try {
+      const {
+        dharamshalaId,
+        assetId,
+        transactionType,
+        quantity,
+        unit = "Piece",
+        rate = 0,
+        amount,
+        donorName = "",
+        donorMobile = "",
+        supplierName = "",
+        transactionDate,
+        expenseId = null,
+        donationId = null,
+        referenceNumber = "",
+        remarks = "",
+        createdBy,
+      } = data;
+
+      if (!dharamshalaId) {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
+          "dharamshalaId is required"
+        );
+      }
+
+      if (!assetId) {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
+          "assetId is required"
+        );
+      }
+
+      if (!transactionType) {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
+          "transactionType is required"
+        );
+      }
+
+      if (!quantity || Number(quantity) <= 0) {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
+          "quantity should be greater than zero"
+        );
+      }
+
+      const asset =
+        await DharamshalaAsset.findById(assetId);
 
       if (!asset) {
         return buildResponse(
-          DataConstant.NOT_FOUND,
+          DataConstant.CLIENT_ERROR.NOT_FOUND,
           "Asset not found"
         );
       }
 
-      asset.assetName = assetName;
-      asset.assetCategory = assetCategory;
-      asset.sourceType = sourceType;
-      asset.donorName = donorName;
-      asset.donorMobile = donorMobile;
-      asset.supplierName = supplierName;
-      asset.quantity = Number(quantity || 1);
+      const qty = Number(quantity);
+      const quantityBefore =
+        Number(asset.availableQuantity || 0);
+
+      const increaseTypes = [
+        "OPENING",
+        "DONATION",
+        "PURCHASE",
+        "TRANSFER_IN",
+        "REPAIRED",
+        "ADJUSTMENT_IN",
+      ];
+
+      const decreaseTypes = [
+        "TRANSFER_OUT",
+        "DAMAGED",
+        "LOST",
+        "DISPOSED",
+        "ADJUSTMENT_OUT",
+      ];
+
+      let quantityAfter = quantityBefore;
+
+      if (increaseTypes.includes(transactionType)) {
+        quantityAfter = quantityBefore + qty;
+        asset.totalQuantity =
+          Number(asset.totalQuantity || 0) + qty;
+      } else if (decreaseTypes.includes(transactionType)) {
+        if (quantityBefore < qty) {
+          return buildResponse(
+            DataConstant.CLIENT_ERROR.BAD_REQUEST,
+            "Insufficient asset quantity"
+          );
+        }
+
+        quantityAfter = quantityBefore - qty;
+
+        if (transactionType === "DAMAGED") {
+          asset.damagedQuantity =
+            Number(asset.damagedQuantity || 0) + qty;
+        }
+
+        if (transactionType === "LOST") {
+          asset.lostQuantity =
+            Number(asset.lostQuantity || 0) + qty;
+        }
+
+        if (transactionType === "DISPOSED") {
+          asset.disposedQuantity =
+            Number(asset.disposedQuantity || 0) + qty;
+        }
+      } else {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
+          "Invalid transactionType"
+        );
+      }
+
+      const finalAmount =
+        amount !== undefined
+          ? Number(amount || 0)
+          : Number(rate || 0) * qty;
+
+      const transactionNumber =
+        await generateAssetTransactionNumber();
+
+      const transaction =
+        await DharamshalaAssetTransaction.create({
+          dharamshalaId,
+          assetId,
+          transactionNumber,
+          transactionType,
+          quantity: qty,
+          unit,
+          rate: Number(rate || 0),
+          amount: finalAmount,
+          quantityBefore,
+          quantityAfter,
+          donorName,
+          donorMobile,
+          supplierName,
+          transactionDate: transactionDate || new Date(),
+          expenseId,
+          donationId,
+          referenceNumber,
+          remarks,
+          createdBy,
+        });
+
+      asset.availableQuantity = quantityAfter;
       asset.unit = unit;
-      asset.purchaseCost = Number(purchaseCost || 0);
-      asset.currentValue = Number(currentValue || 0);
-      asset.purchaseDate = purchaseDate || null;
-      asset.donationDate = donationDate || null;
-      asset.condition = condition;
-      asset.location = location;
-      asset.expenseId = expenseId || null;
-      asset.donationId = donationId || null;
-      asset.imageUrls = mediaUrls;
-      asset.remarks = remarks;
-      asset.updatedBy = updatedBy || createdBy;
+      asset.totalPurchaseCost =
+        Number(asset.totalPurchaseCost || 0) +
+        (["PURCHASE", "OPENING"].includes(transactionType)
+          ? finalAmount
+          : 0);
+      asset.updatedBy = createdBy;
 
       await asset.save();
 
       return buildResponse(
         DataConstant.SUCCESS.OK,
-        "Asset updated successfully",
-        asset
+        "Asset transaction added successfully",
+        transaction
       );
-    }
+    } catch (err) {
+      logger.error("addAssetTransaction error", {
+        error: err.message,
+        stack: err.stack,
+        request: data,
+      });
 
-    if (!dharamshalaId) {
       return buildResponse(
-        DataConstant.BAD_REQUEST,
-        "dharamshalaId is required"
+        DataConstant.SERVER_ERROR.SERVER_ERROR,
+        err.message,
+        null
       );
     }
+  };
 
-    const assetNumber = await generateAssetNumber();
+exports.getAssetTransactions =
+  async (data) => {
+    try {
+      const {
+        pageIndex = 0,
+        pageSize = 10,
+        dharamshalaId,
+        assetId,
+        transactionType,
+        searchText = "",
+        statusFlag = 1,
+      } = data;
 
-    const asset = await DharamshalaAsset.create({
-      dharamshalaId,
-      assetNumber,
-      assetName,
-      assetCategory,
-      sourceType,
-      donorName,
-      donorMobile,
-      supplierName,
-      quantity: Number(quantity || 1),
-      unit,
-      purchaseCost: Number(purchaseCost || 0),
-      currentValue: Number(currentValue || 0),
-      purchaseDate: purchaseDate || null,
-      donationDate: donationDate || null,
-      condition,
-      location,
-      expenseId: expenseId || null,
-      donationId: donationId || null,
-      imageUrls: mediaUrls,
-      remarks,
-      createdBy,
-    });
+      const filter = {
+        statusFlag: Number(statusFlag),
+      };
 
-    return buildResponse(
-      DataConstant.SUCCESS.OK,
-      "Asset added successfully",
-      asset
-    );
-  } catch (err) {
-    logger.error("addOrUpdateAsset service error", {
-      error: err.message,
-      stack: err.stack,
-      request: data,
-    });
+      if (dharamshalaId) filter.dharamshalaId = dharamshalaId;
+      if (assetId) filter.assetId = assetId;
+      if (transactionType) filter.transactionType = transactionType;
 
-    return buildResponse(
-      DataConstant.SERVER_ERROR.SERVER_ERROR,
-      err.message,
-      null
-    );
-  }
-};
+      if (searchText && searchText.trim()) {
+        filter.$or = [
+          {
+            transactionNumber: {
+              $regex: searchText.trim(),
+              $options: "i",
+            },
+          },
+          {
+            donorName: {
+              $regex: searchText.trim(),
+              $options: "i",
+            },
+          },
+          {
+            supplierName: {
+              $regex: searchText.trim(),
+              $options: "i",
+            },
+          },
+          {
+            referenceNumber: {
+              $regex: searchText.trim(),
+              $options: "i",
+            },
+          },
+        ];
+      }
+
+      const skip =
+        Number(pageIndex) * Number(pageSize);
+
+      const limit = Number(pageSize);
+
+      const totalElements =
+        await DharamshalaAssetTransaction.countDocuments(
+          filter
+        );
+
+      const transactions =
+        await DharamshalaAssetTransaction.find(filter)
+          .populate("assetId", "assetNumber assetName assetCategory unit")
+          .populate("createdBy", "name mobileNumber profileUrl")
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean();
+
+      return buildResponse(
+        DataConstant.SUCCESS.OK,
+        "Asset transactions fetched successfully",
+        {
+          content: transactions,
+          pageIndex: Number(pageIndex),
+          pageSize: Number(pageSize),
+          totalElements,
+          totalPages: Math.ceil(totalElements / limit),
+        }
+      );
+    } catch (err) {
+      logger.error("getAssetTransactions error", {
+        error: err.message,
+        stack: err.stack,
+        request: data,
+      });
+
+      return buildResponse(
+        DataConstant.SERVER_ERROR.SERVER_ERROR,
+        err.message,
+        null
+      );
+    }
+  };
