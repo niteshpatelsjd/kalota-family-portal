@@ -702,7 +702,6 @@ exports.getAllAssets = async (data) => {
       pageSize = 10,
       dharamshalaId,
       assetCategory,
-      sourceType,
       condition,
       location,
       searchText = "",
@@ -715,7 +714,6 @@ exports.getAllAssets = async (data) => {
 
     if (dharamshalaId) filter.dharamshalaId = dharamshalaId;
     if (assetCategory) filter.assetCategory = assetCategory;
-    if (sourceType) filter.sourceType = sourceType;
     if (condition) filter.condition = condition;
     if (location) filter.location = { $regex: location, $options: "i" };
 
@@ -723,10 +721,9 @@ exports.getAllAssets = async (data) => {
       filter.$or = [
         { assetNumber: { $regex: searchText.trim(), $options: "i" } },
         { assetName: { $regex: searchText.trim(), $options: "i" } },
-        { donorName: { $regex: searchText.trim(), $options: "i" } },
-        { donorMobile: { $regex: searchText.trim(), $options: "i" } },
-        { supplierName: { $regex: searchText.trim(), $options: "i" } },
+        { assetCategory: { $regex: searchText.trim(), $options: "i" } },
         { location: { $regex: searchText.trim(), $options: "i" } },
+        { remarks: { $regex: searchText.trim(), $options: "i" } },
       ];
     }
 
@@ -737,9 +734,8 @@ exports.getAllAssets = async (data) => {
 
     const assets = await DharamshalaAsset.find(filter)
       .populate("dharamshalaId", "name")
-      .populate("expenseId", "expenseNumber title amount")
-      .populate("donationId", "receiptNumber donationType amount itemName quantity")
       .populate("createdBy", "name mobileNumber profileUrl")
+      .populate("updatedBy", "name mobileNumber profileUrl")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
