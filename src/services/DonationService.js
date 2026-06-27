@@ -1,6 +1,7 @@
 // services/DonationService.js
 
 const mongoose = require("mongoose");
+const InventorySyncService = require("./InventorySyncService");
 const uploadToCloudinary =
   require(
     "../utils/CloudnaryUploadUtil"
@@ -827,6 +828,12 @@ async function verifyItemDonation(body) {
 
     await donation.save();
 
+    if (
+  donation.itemStatus === "RECEIVED" ||
+  donation.itemStatus === "PARTIALLY_RECEIVED"
+) {
+  await InventorySyncService.syncDonationItemToAssetOrInventory(donation._id);
+}
     return buildResponse(
       DataConstant.SUCCESS.OK,
       "Item donation verified successfully",

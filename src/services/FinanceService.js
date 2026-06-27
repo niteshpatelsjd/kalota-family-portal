@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-
+const InventorySyncService = require("./InventorySyncService");
 const DharamshalaExpense =
   require("../models/DharamshalaExpense");
 
@@ -2286,7 +2286,9 @@ exports.addDirectBankExpense = async (data) => {
     await bankAccount.save({ session });
 
     await session.commitTransaction();
-
+await InventorySyncService.syncExpenseItemToAssetOrInventory(
+  expense._id
+);
     return buildResponse(
       DataConstant.SUCCESS.OK,
       "Direct bank expense created successfully",
@@ -2450,7 +2452,9 @@ exports.addExpenseAgainstAdvance = async (data) => {
     await voucher.save({ session });
 
     await session.commitTransaction();
-
+await InventorySyncService.syncExpenseItemToAssetOrInventory(
+  expense._id
+);
     return buildResponse(
       DataConstant.SUCCESS.OK,
       "Expense settled against advance successfully",
