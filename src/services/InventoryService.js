@@ -1,4 +1,13 @@
-const DharamshalaAsset = require("../models/DharamshalaAsset");
+const DharamshalaAsset =
+  require("../models/DharamshalaAsset");
+
+const DharamshalaInventoryItem =
+  require("../models/DharamshalaInventoryItem");
+
+const DharamshalaInventoryTransaction =
+  require("../models/DharamshalaInventoryTransaction");
+
+
 const {
   generateAssetNumber,
   generateInventoryItemCode,
