@@ -15,6 +15,7 @@ const {
   generateAssetNumber,
   generateInventoryItemCode,
   generateStockTransactionNumber,
+  generateAssetTransactionNumber,
 } = require("../utils/NumberGenerater");
 
 const uploadToCloudinary =
