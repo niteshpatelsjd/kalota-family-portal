@@ -6,6 +6,8 @@ const DharamshalaExpense =
 
 const DharamshalaExpenseItem =
   require("../models/DharamshalaExpenseItem");
+const DharamshalaItem =
+  require("../models/DharamshalaItem");
 const DharamshalaBankAccount =
   require("../models/DharamshalaBankAccount");
 
@@ -39,6 +41,88 @@ const {
   generateLedgerNumber,
   generateExpenseNumber,
 } = require("../utils/NumberGenerater");
+
+const prepareExpenseItems = async ({ items, session }) => {
+  if (!Array.isArray(items) || items.length === 0) {
+    return { items: [] };
+  }
+
+  const missingItemIndex = items.findIndex(
+    (item) =>
+      (item.itemType || "MATERIAL") === "MATERIAL" &&
+      !item.itemId
+  );
+
+  if (missingItemIndex !== -1) {
+    return {
+      error: `itemId is required for material item at index ${missingItemIndex}`,
+    };
+  }
+
+  const invalidItemIndex = items.findIndex(
+    (item) =>
+      item.itemId &&
+      !mongoose.Types.ObjectId.isValid(item.itemId)
+  );
+
+  if (invalidItemIndex !== -1) {
+    return {
+      error: `Invalid itemId at index ${invalidItemIndex}`,
+    };
+  }
+
+  const itemIds = [
+    ...new Set(
+      items
+        .filter((item) => item.itemId)
+        .map((item) => String(item.itemId))
+    ),
+  ];
+
+  const itemMasters = itemIds.length
+    ? await DharamshalaItem.find({
+        _id: { $in: itemIds },
+        statusFlag: 1,
+      })
+        .session(session)
+        .lean()
+    : [];
+
+  const itemMasterById = new Map(
+    itemMasters.map((item) => [String(item._id), item])
+  );
+
+  const missingMasterIndex = items.findIndex(
+    (item) =>
+      item.itemId &&
+      !itemMasterById.has(String(item.itemId))
+  );
+
+  if (missingMasterIndex !== -1) {
+    return {
+      error: `Selected item at index ${missingMasterIndex} was not found`,
+    };
+  }
+
+  const preparedItems = items.map((item) => {
+    const itemMaster = item.itemId
+      ? itemMasterById.get(String(item.itemId))
+      : null;
+
+    return {
+      itemId: itemMaster?._id || null,
+      itemType: item.itemType || "MATERIAL",
+      itemName: itemMaster?.itemName || item.itemName,
+      quantity: item.quantity || 1,
+      unit: item.unit || itemMaster?.defaultUnit || "",
+      rate: item.rate || 0,
+      amount: item.amount || 0,
+      remarks: item.remarks || "",
+    };
+  });
+
+  return { items: preparedItems };
+};
 
 /* ─────────────────────────────────────
    ADD / UPDATE BANK ACCOUNT
@@ -2169,6 +2253,20 @@ exports.addDirectBankExpense = async (data) => {
       return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Amount should be greater than zero", null);
     }
 
+    const preparedItemsResult = await prepareExpenseItems({
+      items,
+      session,
+    });
+
+    if (preparedItemsResult.error) {
+      await session.abortTransaction();
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        preparedItemsResult.error,
+        null
+      );
+    }
+
     const bankAccount = await DharamshalaBankAccount.findById(bankAccountId).session(session);
 
     if (!bankAccount) {
@@ -2248,6 +2346,8 @@ exports.addDirectBankExpense = async (data) => {
           dharamshalaId,
           voucherId: voucher._id,
           ledgerId: ledger._id,
+          bankAccountId,
+          expenseSource: "DIRECT_BANK",
           expenseNumber,
           expenseType,
           title,
@@ -2267,16 +2367,17 @@ exports.addDirectBankExpense = async (data) => {
 
     const expense = expenseResult[0];
 
-    if (Array.isArray(items) && items.length > 0) {
-      const expenseItems = items.map((item) => ({
+    if (preparedItemsResult.items.length > 0) {
+      const expenseItems = preparedItemsResult.items.map((item) => ({
         expenseId: expense._id,
-        itemType: item.itemType || "MATERIAL",
+        itemId: item.itemId,
+        itemType: item.itemType,
         itemName: item.itemName,
-        quantity: item.quantity || 1,
-        unit: item.unit || "",
-        rate: item.rate || 0,
-        amount: item.amount || 0,
-        remarks: item.remarks || "",
+        quantity: item.quantity,
+        unit: item.unit,
+        rate: item.rate,
+        amount: item.amount,
+        remarks: item.remarks,
       }));
 
       await DharamshalaExpenseItem.insertMany(expenseItems, { session });
@@ -2367,6 +2468,20 @@ exports.addExpenseAgainstAdvance = async (data) => {
       return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Amount should be greater than zero", null);
     }
 
+    const preparedItemsResult = await prepareExpenseItems({
+      items,
+      session,
+    });
+
+    if (preparedItemsResult.error) {
+      await session.abortTransaction();
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        preparedItemsResult.error,
+        null
+      );
+    }
+
     const voucher = await DharamshalaVoucher.findById(voucherId).session(session);
 
     if (!voucher) {
@@ -2411,6 +2526,7 @@ exports.addExpenseAgainstAdvance = async (data) => {
           dharamshalaId,
           voucherId,
           ledgerId: voucher.ledgerId || null,
+          expenseSource: "AGAINST_ADVANCE",
           expenseNumber,
           expenseType,
           title,
@@ -2430,16 +2546,17 @@ exports.addExpenseAgainstAdvance = async (data) => {
 
     const expense = expenseResult[0];
 
-    if (Array.isArray(items) && items.length > 0) {
-      const expenseItems = items.map((item) => ({
+    if (preparedItemsResult.items.length > 0) {
+      const expenseItems = preparedItemsResult.items.map((item) => ({
         expenseId: expense._id,
-        itemType: item.itemType || "MATERIAL",
+        itemId: item.itemId,
+        itemType: item.itemType,
         itemName: item.itemName,
-        quantity: item.quantity || 1,
-        unit: item.unit || "",
-        rate: item.rate || 0,
-        amount: item.amount || 0,
-        remarks: item.remarks || "",
+        quantity: item.quantity,
+        unit: item.unit,
+        rate: item.rate,
+        amount: item.amount,
+        remarks: item.remarks,
       }));
 
       await DharamshalaExpenseItem.insertMany(expenseItems, { session });
@@ -2545,6 +2662,9 @@ exports.getExpenseById =
             expenseId:
               expense._id,
           }
+        ).populate(
+          "itemId",
+          "itemCode itemName itemNature category defaultUnit"
         );
 
       logger.info(

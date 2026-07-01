@@ -1030,4 +1030,143 @@ router.get(
   "/getAssetTransactions",
   inventoryController.getAssetTransactionsController
 );
+
+
+
+/**
+ * @swagger
+ * /admin/inventory/addUpdateItem:
+ *   post:
+ *     summary: Add or update global item master
+ *     tags: [Inventory Controller]
+ *     description: Create or update an Asset or Inventory item available to every Dharamshala.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - itemName
+ *               - itemNature
+ *             properties:
+ *               id:
+ *                 type: string
+ *               itemName:
+ *                 type: string
+ *                 example: "Fan"
+ *               itemNature:
+ *                 type: string
+ *                 enum: [ASSET, INVENTORY]
+ *                 example: "ASSET"
+ *               category:
+ *                 type: string
+ *                 example: "ELECTRICAL"
+ *               defaultUnit:
+ *                 type: string
+ *                 example: "Piece"
+ *               description:
+ *                 type: string
+ *                 example: "Ceiling fan used in rooms"
+ *               createdBy:
+ *                 type: string
+ *               updatedBy:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Item added or updated successfully.
+ */
+router.post(
+  "/addUpdateItem",
+  inventoryController.addUpdateItemController
+);
+
+// Backward-compatible descriptive alias.
+router.post(
+  "/addOrUpdateItem",
+  inventoryController.addUpdateItemController
+);
+
+/**
+ * @swagger
+ * /admin/inventory/getAllItem:
+ *   get:
+ *     summary: Get global item master list
+ *     tags: [Inventory Controller]
+ *     parameters:
+ *       - in: query
+ *         name: itemNature
+ *         schema:
+ *           type: string
+ *           enum: [ASSET, INVENTORY]
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: searchText
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: statusFlag
+ *         schema:
+ *           type: integer
+ *           enum: [1, 2]
+ *           default: 1
+ *       - in: query
+ *         name: pageIndex
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Items fetched successfully.
+ */
+router.get(
+  "/getAllItem",
+  inventoryController.getAllItemsController
+);
+
+// Keep the plural route available for existing clients.
+router.get(
+  "/getAllItems",
+  inventoryController.getAllItemsController
+);
+
+/**
+ * @swagger
+ * /admin/inventory/blockUnblockItem:
+ *   post:
+ *     summary: Block or activate a Dharamshala item
+ *     tags: [Inventory Controller]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [id, statusFlag]
+ *             properties:
+ *               id:
+ *                 type: string
+ *               statusFlag:
+ *                 type: integer
+ *                 enum: [1, 2]
+ *                 description: 1 activates the item and 2 blocks it.
+ *               updatedBy:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Item status updated successfully.
+ */
+router.post(
+  "/blockUnblockItem",
+  inventoryController.blockUnblockItemController
+);
+
 module.exports = router;

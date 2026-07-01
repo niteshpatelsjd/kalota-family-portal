@@ -747,8 +747,12 @@ router.get(
  *                         - TRANSPORT
  *                         - SERVICE
  *                         - OTHER
+ *                     itemId:
+ *                       type: string
+ *                       description: Required for MATERIAL items. Select from the Dharamshala item master.
  *                     itemName:
  *                       type: string
+ *                       description: Derived from itemId for MATERIAL items; required as free text for other item types.
  *                     quantity:
  *                       type: number
  *                     unit:
@@ -774,7 +778,7 @@ router.get(
  *             createdBy: "66b123456789012345678903"
  *             items:
  *               - itemType: "MATERIAL"
- *                 itemName: "Steel Plate"
+ *                 itemId: "66b123456789012345678904"
  *                 quantity: 100
  *                 unit: "Piece"
  *                 rate: 250
@@ -865,8 +869,12 @@ router.post(
  *                         - TRANSPORT
  *                         - SERVICE
  *                         - OTHER
+ *                     itemId:
+ *                       type: string
+ *                       description: Required for MATERIAL items. Select from the Dharamshala item master.
  *                     itemName:
  *                       type: string
+ *                       description: Derived from itemId for MATERIAL items; required as free text for other item types.
  *                     quantity:
  *                       type: number
  *                     unit:
@@ -892,7 +900,7 @@ router.post(
  *             createdBy: "66b123456789012345678903"
  *             items:
  *               - itemType: "MATERIAL"
- *                 itemName: "Ceiling Fan"
+ *                 itemId: "66b123456789012345678904"
  *                 quantity: 10
  *                 unit: "Piece"
  *                 rate: 850

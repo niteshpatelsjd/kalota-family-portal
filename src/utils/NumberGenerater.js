@@ -1,6 +1,8 @@
 const DharamshalaDonation =
   require("../models/DharamshalaDonation");
 
+const DharamshalaItem = require("../models/DharamshalaItem");
+
 const DharamshalaVoucher =
   require("../models/DharamshalaVoucher");
 
@@ -215,7 +217,37 @@ async function generateStockTransactionNumber() {
   return `${prefix}${padNumber(nextNumber)}`;
 }
 
+
+
+async function generateItemCode() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+
+  const prefix = `ITEM-${year}-${month}-`;
+
+  const last = await DharamshalaItem.findOne({
+    itemCode: { $regex: `^${prefix}` },
+  })
+    .sort({ createdAt: -1 })
+    .select("itemCode")
+    .lean();
+
+  let nextNumber = 1;
+
+  if (last?.itemCode) {
+    const lastNumber = Number(last.itemCode.split("-").pop());
+    if (!Number.isNaN(lastNumber)) {
+      nextNumber = lastNumber + 1;
+    }
+  }
+
+  return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+}
+
+
 module.exports = {
+  generateItemCode,
   generateReceiptNumber,
   generateVoucherNumber,
   generateLedgerNumber,

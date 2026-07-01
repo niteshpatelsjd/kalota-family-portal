@@ -106,7 +106,11 @@ paymentMode: {
   ],
   default: "BANK",
 },
-
+itemId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "dharamshala_item",
+  default: null,
+},
       description: {
         type: String,
         default: "",

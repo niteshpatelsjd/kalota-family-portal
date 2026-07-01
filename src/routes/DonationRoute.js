@@ -101,7 +101,13 @@ const router = express.Router();
  *                 example: 2100
  *               itemName:
  *                 type: string
+ *                 description: Derived from the selected item for ITEM donations.
+ *                 readOnly: true
  *                 example: "Fan"
+ *               itemId:
+ *                 type: string
+ *                 description: Required for ITEM donations. Select from the Dharamshala item master.
+ *                 example: "ITEM_ID"
  *               quantity:
  *                 type: number
  *                 example: 10
@@ -155,7 +161,7 @@ const router = express.Router();
  *                 donorUserId: "USER_ID"
  *                 donationSource: "COMMITTEE_COLLECTION"
  *                 donationType: "ITEM"
- *                 itemName: "Fan"
+ *                 itemId: "ITEM_ID"
  *                 quantity: 10
  *                 purpose: "Room Facility"
  *                 paymentMode: "NA"

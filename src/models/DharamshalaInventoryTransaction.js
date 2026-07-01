@@ -87,7 +87,12 @@ const DharamshalaInventoryTransactionSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-
+// DharamshalaAsset
+itemId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "dharamshala_item",
+  required: true,
+},
     remarks: {
       type: String,
       default: "",

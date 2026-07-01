@@ -1,13 +1,7 @@
 const mongoose = require("mongoose");
 
-const DharamshalaInventoryItemSchema = new mongoose.Schema(
+const DharamshalaItemSchema = new mongoose.Schema(
   {
-    dharamshalaId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "dharamshala",
-      required: true,
-    },
-
     itemCode: {
       type: String,
       required: true,
@@ -20,14 +14,21 @@ const DharamshalaInventoryItemSchema = new mongoose.Schema(
       trim: true,
     },
 
+    normalizedName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    itemNature: {
+      type: String,
+      enum: ["ASSET", "INVENTORY"],
+      required: true,
+    },
+
     category: {
       type: String,
       enum: [
-        "FOOD",
-        "GROCERY",
-        "KITCHEN",
-        "CONSTRUCTION",
-        "STATIONERY",
         "LAND",
         "BUILDING",
         "ROOM",
@@ -60,59 +61,48 @@ const DharamshalaInventoryItemSchema = new mongoose.Schema(
         "TOOLS",
         "OTHER",
       ],
-      required: true,
+      default: "OTHER",
     },
 
-    unit: {
+    defaultUnit: {
       type: String,
       default: "Piece",
     },
 
-    currentStock: {
-      type: Number,
-      default: 0,
-    },
-
-    minimumStock: {
-      type: Number,
-      default: 0,
-    },
-
-    location: {
+    description: {
       type: String,
       default: "",
     },
 
-    remarks: {
-      type: String,
-      default: "",
-    },
-    itemId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "dharamshala_item",
-      required: true,
-    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "admin_user",
+      default: null,
+      set: (value) => value || null,
     },
 
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "admin_user",
+      default: null,
+      set: (value) => value || null,
     },
 
     statusFlag: {
       type: Number,
+      enum: [1, 2],
       default: 1,
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-module.exports = mongoose.model(
-  "dharamshala_inventory_item",
-  DharamshalaInventoryItemSchema
+DharamshalaItemSchema.index(
+  {
+    normalizedName: 1,
+    itemNature: 1,
+  },
+  { unique: true }
 );
+
+module.exports = mongoose.model("dharamshala_item", DharamshalaItemSchema);

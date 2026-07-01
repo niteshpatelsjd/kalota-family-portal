@@ -1,3 +1,5 @@
+const mongoose = require("mongoose");
+
 const DharamshalaAsset =
   require("../models/DharamshalaAsset");
 
@@ -29,6 +31,272 @@ const logger = require("../utils/logger");
 
 
 
+const DharamshalaItem = require("../models/DharamshalaItem");
+const { generateItemCode } = require("../utils/NumberGenerater");
+
+const normalizeItemName = (name = "") =>
+  String(name)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/s$/, "");
+
+exports.addUpdateItem = async (data) => {
+  try {
+    const {
+      id,
+      itemName,
+      itemNature,
+      category,
+      defaultUnit,
+      description,
+      createdBy,
+      updatedBy,
+    } = data;
+
+    if (!itemName?.trim()) {
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "itemName is required");
+    }
+
+    if (!itemNature) {
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "itemNature is required");
+    }
+
+    if (!["ASSET", "INVENTORY"].includes(itemNature)) {
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "Invalid itemNature");
+    }
+
+    const validCategories = DharamshalaItem.schema.path("category").enumValues;
+    const finalCategory = category || "OTHER";
+
+    if (!validCategories.includes(finalCategory)) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Invalid category"
+      );
+    }
+
+    const normalizedName = normalizeItemName(itemName);
+
+    if (!normalizedName) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "itemName must contain letters or numbers"
+      );
+    }
+
+    if (id) {
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
+          "Invalid item id"
+        );
+      }
+
+      const item = await DharamshalaItem.findById(id);
+
+      if (!item) {
+        return buildResponse(DataConstant.CLIENT_ERROR.NOT_FOUND, "Item not found");
+      }
+
+      const duplicate = await DharamshalaItem.findOne({
+        _id: { $ne: id },
+        normalizedName,
+        itemNature,
+      });
+
+      if (duplicate) {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.CONFLICT,
+          "Same item already exists"
+        );
+      }
+
+      item.itemName = itemName.trim();
+      item.normalizedName = normalizedName;
+      item.itemNature = itemNature;
+      item.category = category || item.category;
+      item.defaultUnit = defaultUnit || item.defaultUnit;
+      item.description =
+        description === undefined ? item.description : description;
+      item.updatedBy = updatedBy || createdBy || item.updatedBy || null;
+
+      await item.save();
+
+      return buildResponse(
+        DataConstant.SUCCESS.OK,
+        "Item updated successfully",
+        item
+      );
+    }
+
+    const existing = await DharamshalaItem.findOne({
+      normalizedName,
+      itemNature,
+    });
+
+    if (existing) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.CONFLICT,
+        "Same item already exists",
+        existing
+      );
+    }
+
+    const itemCode = await generateItemCode();
+
+    const item = await DharamshalaItem.create({
+      itemCode,
+      itemName: itemName.trim(),
+      normalizedName,
+      itemNature,
+      category: finalCategory,
+      defaultUnit: defaultUnit || "Piece",
+      description: description || "",
+      createdBy: createdBy || null,
+    });
+
+    return buildResponse(
+      DataConstant.SUCCESS.OK,
+      "Item added successfully",
+      item
+    );
+  } catch (err) {
+    logger.error("addUpdateItem service error", {
+      error: err.message,
+      stack: err.stack,
+      request: data,
+    });
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+};
+
+exports.getAllItems = async (data) => {
+  try {
+    const {
+      pageIndex = 0,
+      pageSize = 10,
+      itemNature,
+      category,
+      searchText = "",
+      statusFlag = 1,
+    } = data;
+
+    const filter = {
+      statusFlag: Number(statusFlag),
+    };
+
+    if (itemNature) filter.itemNature = itemNature;
+    if (category) filter.category = category;
+
+    if (searchText?.trim()) {
+      filter.$or = [
+        { itemCode: { $regex: searchText.trim(), $options: "i" } },
+        { itemName: { $regex: searchText.trim(), $options: "i" } },
+        { normalizedName: { $regex: searchText.trim(), $options: "i" } },
+        { category: { $regex: searchText.trim(), $options: "i" } },
+      ];
+    }
+
+    const skip = Number(pageIndex) * Number(pageSize);
+    const limit = Number(pageSize);
+
+    const totalElements = await DharamshalaItem.countDocuments(filter);
+
+    const items = await DharamshalaItem.find(filter)
+      .populate("createdBy", "name mobileNumber profileUrl")
+      .populate("updatedBy", "name mobileNumber profileUrl")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    return buildResponse(
+      DataConstant.SUCCESS.OK,
+      "Items fetched successfully",
+      {
+        content: items,
+        pageIndex: Number(pageIndex),
+        pageSize: Number(pageSize),
+        totalElements,
+        totalPages: Math.ceil(totalElements / limit),
+      }
+    );
+  } catch (err) {
+    logger.error("getAllItems service error", {
+      error: err.message,
+      stack: err.stack,
+      request: data,
+    });
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+};
+
+exports.blockUnblockItem = async (data) => {
+  try {
+    const { id, statusFlag, updatedBy } = data;
+
+    if (!id) {
+      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "id is required");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Invalid item id"
+      );
+    }
+
+    if (![1, 2, "1", "2"].includes(statusFlag)) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "statusFlag should be 1 or 2"
+      );
+    }
+
+    const item = await DharamshalaItem.findById(id);
+
+    if (!item) {
+      return buildResponse(DataConstant.CLIENT_ERROR.NOT_FOUND, "Item not found");
+    }
+
+    item.statusFlag = Number(statusFlag);
+    item.updatedBy = updatedBy || item.updatedBy || null;
+
+    await item.save();
+
+    return buildResponse(
+      DataConstant.SUCCESS.OK,
+      Number(statusFlag) === 1
+        ? "Item activated successfully"
+        : "Item blocked successfully",
+      item
+    );
+  } catch (err) {
+    logger.error("blockUnblockItem service error", {
+      error: err.message,
+      stack: err.stack,
+      request: data,
+    });
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+};
 
 exports.addStockTransaction = async (data) => {
   try {

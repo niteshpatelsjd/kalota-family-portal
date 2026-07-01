@@ -29,6 +29,12 @@ const DharamshalaExpenseItemSchema =
         trim: true,
       },
 
+      itemId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "dharamshala_item",
+        default: null,
+      },
+
       quantity: {
         type: Number,
         default: 1,

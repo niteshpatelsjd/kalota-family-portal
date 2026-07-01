@@ -40,6 +40,7 @@ const DharamshalaDonationSchema = new mongoose.Schema(
       default: "",
     },
 
+
     familyId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "family",
@@ -180,6 +181,11 @@ const DharamshalaDonationSchema = new mongoose.Schema(
       default: "",
     },
 
+    itemId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "dharamshala_item",
+      default: null,
+    },
     status: {
       type: Number,
       enum: [0, 1, 2],

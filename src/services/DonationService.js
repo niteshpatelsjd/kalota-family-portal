@@ -10,6 +10,7 @@ const DharamshalaDonation = require("../models/DharamshalaDonation");
 const DharamshalaVoucher = require("../models/DharamshalaVoucher");
 const DharamshalaLedger = require("../models/DharamshalaLedger");
 const DharamshalaBankAccount = require("../models/DharamshalaBankAccount");
+const DharamshalaItem = require("../models/DharamshalaItem");
 
 
 const buildResponse = require("../utils/response");
@@ -39,7 +40,7 @@ async function createDonation(body, userId) {
       donationSource = "COMMITTEE_COLLECTION",
       donationType,
       amount,
-      itemName,
+      itemId,
       quantity,
       purpose,
       paymentMode,
@@ -126,15 +127,50 @@ async function createDonation(body, userId) {
       );
     }
 
+    if (donationType === "ITEM" && !itemId) {
+      await session.abortTransaction();
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "itemId is required for item donation"
+      );
+    }
+
     if (
       donationType === "ITEM" &&
-      (!itemName || !quantity || Number(quantity) <= 0)
+      (!quantity || Number(quantity) <= 0)
     ) {
       await session.abortTransaction();
       return buildResponse(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
-        "itemName and quantity are required"
+        "quantity is required for item donation"
       );
+    }
+
+    let selectedItem = null;
+
+    if (donationType === "ITEM") {
+      if (!mongoose.Types.ObjectId.isValid(itemId)) {
+        await session.abortTransaction();
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
+          "Invalid itemId"
+        );
+      }
+
+      selectedItem = await DharamshalaItem.findOne({
+        _id: itemId,
+        statusFlag: 1,
+      })
+        .session(session)
+        .lean();
+
+      if (!selectedItem) {
+        await session.abortTransaction();
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.NOT_FOUND,
+          "Selected item not found"
+        );
+      }
     }
 
     if (!purpose) {
@@ -240,7 +276,8 @@ async function createDonation(body, userId) {
           donationType,
 
           amount: donationType === "MONEY" ? Number(amount) : 0,
-          itemName: donationType === "ITEM" ? itemName : "",
+          itemId: isItemDonation ? selectedItem._id : null,
+          itemName: isItemDonation ? selectedItem.itemName : "",
           quantity: donationType === "ITEM" ? Number(quantity) : 0,
           receivedQuantity: 0,
 
@@ -375,6 +412,7 @@ async function getAllDonations(query) {
       donorUserId,
       donationSource,
       donationType,
+      itemId,
       paymentMode,
 
       collectionStatus,
@@ -396,6 +434,7 @@ async function getAllDonations(query) {
     if (donorUserId) filter.donorUserId = donorUserId;
     if (donationSource) filter.donationSource = donationSource;
     if (donationType) filter.donationType = donationType;
+    if (itemId) filter.itemId = itemId;
     if (paymentMode) filter.paymentMode = paymentMode;
 
     if (collectionStatus) filter.collectionStatus = collectionStatus;
@@ -431,6 +470,10 @@ async function getAllDonations(query) {
         )
         .populate("collectedBy", "name mobileNumber profileUrl")
         .populate("verifiedBy", "name mobileNumber profileUrl")
+        .populate(
+          "itemId",
+          "itemCode itemName itemNature category defaultUnit"
+        )
         
         .populate("bankAccountId", "accountName bankName accountNumber ifscCode")
         .populate("voucherId", "voucherNumber voucherType category status approvedAmount")
@@ -477,6 +520,10 @@ async function getDonationById(id) {
       )
       .populate("collectedBy", "name mobileNumber profileUrl")
       .populate("verifiedBy", "name mobileNumber profileUrl")
+      .populate(
+        "itemId",
+        "itemCode itemName itemNature category defaultUnit"
+      )
       
       .populate("bankAccountId", "accountName bankName accountNumber ifscCode")
       .populate("voucherId")

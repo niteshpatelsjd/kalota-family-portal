@@ -1,8 +1,8 @@
-const mongoose = require("mongoose");
-
 const DharamshalaDonation = require("../models/DharamshalaDonation");
 const DharamshalaExpense = require("../models/DharamshalaExpense");
 const DharamshalaExpenseItem = require("../models/DharamshalaExpenseItem");
+
+const DharamshalaItem = require("../models/DharamshalaItem");
 
 const DharamshalaAsset = require("../models/DharamshalaAsset");
 const DharamshalaAssetTransaction = require("../models/DharamshalaAssetTransaction");
@@ -21,144 +21,19 @@ const buildResponse = require("../utils/response");
 const DataConstant = require("../constants/DataConstant");
 const logger = require("../utils/logger");
 
-/**
- * Decide item should be ASSET or INVENTORY
- */
-const decideItemNature = (itemName = "", category = "") => {
-  const text = `${itemName} ${category}`.toLowerCase();
+const getItemMaster = async (itemId) => {
+  if (!itemId) return null;
 
-  const assetKeywords = [
-    "fan",
-    "chair",
-    "table",
-    "bed",
-    "cooler",
-    "light",
-    "bulb holder",
-    "water tank",
-    "motor",
-    "cctv",
-    "camera",
-    "speaker",
-    "mic",
-    "mike",
-    "utensil",
-    "kadai",
-    "patila",
-    "gas stove",
-    "fridge",
-    "almirah",
-    "mattress",
-  ];
-
-  const inventoryKeywords = [
-    "rice",
-    "wheat",
-    "oil",
-    "sugar",
-    "tea",
-    "cement",
-    "paint",
-    "sand",
-    "brick",
-    "wire",
-    "pipe",
-    "phenyl",
-    "soap",
-    "cleaning",
-    "disposable",
-    "food",
-    "grocery",
-  ];
-
-  if (assetKeywords.some((word) => text.includes(word))) {
-    return "ASSET";
-  }
-
-  if (inventoryKeywords.some((word) => text.includes(word))) {
-    return "INVENTORY";
-  }
-
-  return "ASSET";
+  return DharamshalaItem.findOne({
+    _id: itemId,
+    statusFlag: 1,
+  }).lean();
 };
 
-const mapAssetCategory = (itemName = "", category = "") => {
-  const text = `${itemName} ${category}`.toLowerCase();
-
-  if (text.includes("fan") || text.includes("light") || text.includes("bulb")) {
-    return "ELECTRICAL";
-  }
-
-  if (text.includes("chair") || text.includes("table")) {
-    return "FURNITURE";
-  }
-
-  if (text.includes("bed") || text.includes("mattress")) {
-    return "BEDDING";
-  }
-
-  if (
-    text.includes("kitchen") ||
-    text.includes("kadai") ||
-    text.includes("patila") ||
-    text.includes("stove")
-  ) {
-    return "KITCHEN";
-  }
-
-  if (text.includes("water")) {
-    return "WATER_SYSTEM";
-  }
-
-  if (text.includes("cement") || text.includes("brick") || text.includes("sand")) {
-    return "CONSTRUCTION_MATERIAL";
-  }
-
-  return "OTHER";
-};
-
-const mapInventoryCategory = (itemName = "", category = "") => {
-  const text = `${itemName} ${category}`.toLowerCase();
-
-  if (
-    text.includes("rice") ||
-    text.includes("wheat") ||
-    text.includes("oil") ||
-    text.includes("sugar") ||
-    text.includes("tea")
-  ) {
-    return "FOOD";
-  }
-
-  if (text.includes("cement") || text.includes("paint") || text.includes("brick")) {
-    return "CONSTRUCTION";
-  }
-
-  if (text.includes("phenyl") || text.includes("soap") || text.includes("clean")) {
-    return "CLEANING";
-  }
-
-  if (text.includes("wire") || text.includes("bulb")) {
-    return "ELECTRICAL";
-  }
-
-  return "OTHER";
-};
-
-const normalizeName = (name = "") => name.trim().replace(/\s+/g, " ");
-
-const findOrCreateAsset = async ({
-  dharamshalaId,
-  itemName,
-  unit,
-  currentValue = 0,
-  createdBy,
-}) => {
-  const assetName = normalizeName(itemName);
-
+const findOrCreateAsset = async ({ dharamshalaId, itemMaster, createdBy }) => {
   let asset = await DharamshalaAsset.findOne({
     dharamshalaId,
-    assetName: { $regex: `^${assetName}$`, $options: "i" },
+    itemId: itemMaster._id,
     statusFlag: 1,
   });
 
@@ -168,19 +43,22 @@ const findOrCreateAsset = async ({
 
   asset = await DharamshalaAsset.create({
     dharamshalaId,
+    itemId: itemMaster._id,
     assetNumber,
-    assetName,
-    assetCategory: mapAssetCategory(assetName),
-    unit: unit || "Piece",
+    assetName: itemMaster.itemName,
+    assetCategory: itemMaster.category || "OTHER",
     totalQuantity: 0,
     availableQuantity: 0,
     damagedQuantity: 0,
     lostQuantity: 0,
     disposedQuantity: 0,
-    currentValue: Number(currentValue || 0),
+    unit: itemMaster.defaultUnit || "Piece",
+    totalPurchaseCost: 0,
+    currentValue: 0,
     condition: "GOOD",
     location: "",
-    remarks: "Auto-created from finance sync",
+    imageUrls: [],
+    remarks: "Auto-created from item sync",
     createdBy,
   });
 
@@ -189,16 +67,12 @@ const findOrCreateAsset = async ({
 
 const findOrCreateInventoryItem = async ({
   dharamshalaId,
-  itemName,
-  unit,
-  currentStock = 0,
+  itemMaster,
   createdBy,
 }) => {
-  const cleanName = normalizeName(itemName);
-
   let item = await DharamshalaInventoryItem.findOne({
     dharamshalaId,
-    itemName: { $regex: `^${cleanName}$`, $options: "i" },
+    itemId: itemMaster._id,
     statusFlag: 1,
   });
 
@@ -208,14 +82,15 @@ const findOrCreateInventoryItem = async ({
 
   item = await DharamshalaInventoryItem.create({
     dharamshalaId,
+    itemId: itemMaster._id,
     itemCode,
-    itemName: cleanName,
-    category: mapInventoryCategory(cleanName),
-    unit: unit || "Piece",
-    currentStock: Number(currentStock || 0),
+    itemName: itemMaster.itemName,
+    category: itemMaster.category,
+    unit: itemMaster.defaultUnit || "Piece",
+    currentStock: 0,
     minimumStock: 0,
     location: "",
-    remarks: "Auto-created from finance sync",
+    remarks: "Auto-created from item sync",
     createdBy,
   });
 
@@ -224,6 +99,7 @@ const findOrCreateInventoryItem = async ({
 
 const createAssetTransaction = async ({
   dharamshalaId,
+  itemMaster,
   asset,
   transactionType,
   quantity,
@@ -247,15 +123,17 @@ const createAssetTransaction = async ({
 
   const transaction = await DharamshalaAssetTransaction.create({
     dharamshalaId,
+    itemId: itemMaster._id,
     assetId: asset._id,
     transactionNumber,
     transactionType,
     quantity: qty,
-    unit: unit || asset.unit || "Piece",
+    unit: unit || asset.unit || itemMaster.defaultUnit || "Piece",
     rate: Number(rate || 0),
     amount: Number(amount || 0),
     quantityBefore,
     quantityAfter,
+    sourceType: donationId ? "DONATION" : expenseId ? "EXPENSE" : "MANUAL",
     donationId,
     expenseId,
     donorName,
@@ -268,10 +146,14 @@ const createAssetTransaction = async ({
 
   asset.totalQuantity = Number(asset.totalQuantity || 0) + qty;
   asset.availableQuantity = quantityAfter;
-  asset.unit = unit || asset.unit || "Piece";
+  asset.unit = unit || asset.unit || itemMaster.defaultUnit || "Piece";
 
   if (transactionType === "PURCHASE") {
-    asset.totalPurchaseCost = Number(asset.totalPurchaseCost || 0) + Number(amount || 0);
+    asset.totalPurchaseCost =
+      Number(asset.totalPurchaseCost || 0) + Number(amount || 0);
+
+    asset.currentValue =
+      Number(asset.currentValue || 0) + Number(amount || 0);
   }
 
   asset.updatedBy = createdBy;
@@ -282,6 +164,7 @@ const createAssetTransaction = async ({
 
 const createStockTransaction = async ({
   dharamshalaId,
+  itemMaster,
   item,
   transactionType,
   quantity,
@@ -302,11 +185,12 @@ const createStockTransaction = async ({
 
   const transaction = await DharamshalaInventoryTransaction.create({
     dharamshalaId,
+    itemId: itemMaster._id,
     inventoryItemId: item._id,
     transactionNumber,
     transactionType,
     quantity: qty,
-    unit: unit || item.unit || "Piece",
+    unit: unit || item.unit || itemMaster.defaultUnit || "Piece",
     rate: Number(rate || 0),
     amount: Number(amount || 0),
     stockBefore,
@@ -320,32 +204,51 @@ const createStockTransaction = async ({
   });
 
   item.currentStock = stockAfter;
-  item.unit = unit || item.unit || "Piece";
+  item.unit = unit || item.unit || itemMaster.defaultUnit || "Piece";
   item.updatedBy = createdBy;
   await item.save();
 
   return transaction;
 };
 
-/**
- * Donation ITEM sync
- */
 exports.syncDonationItemToAssetOrInventory = async (donationId) => {
   try {
     if (!donationId) {
-      return buildResponse(DataConstant.BAD_REQUEST, "donationId is required");
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "donationId is required"
+      );
     }
 
     const donation = await DharamshalaDonation.findById(donationId).lean();
 
     if (!donation) {
-      return buildResponse(DataConstant.NOT_FOUND, "Donation not found");
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
+        "Donation not found"
+      );
     }
 
     if (donation.donationType !== "ITEM") {
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "Only ITEM donation can be synced"
+      );
+    }
+
+    if (!donation.itemId) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "itemId is required in donation. Please select Dharamshala item."
+      );
+    }
+
+    const itemMaster = await getItemMaster(donation.itemId);
+
+    if (!itemMaster) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
+        "Dharamshala item not found"
       );
     }
 
@@ -361,46 +264,35 @@ exports.syncDonationItemToAssetOrInventory = async (donationId) => {
 
     if (alreadyAssetTxn || alreadyStockTxn) {
       return buildResponse(
-        DataConstant.CONFLICT,
+        DataConstant.CLIENT_ERROR.CONFLICT,
         "Donation already synced",
         alreadyAssetTxn || alreadyStockTxn
       );
     }
 
-    const itemName = donation.itemName;
-    const quantity = Number(
-  donation.receivedQuantity || donation.quantity || 1
-);
-    const unit = donation.unit || "Piece";
+    const quantity = Number(donation.receivedQuantity || donation.quantity || 1);
+    const unit = donation.unit || itemMaster.defaultUnit || "Piece";
     const dharamshalaId = donation.dharamshalaId;
-    const createdBy = donation.createdBy || donation.collectedBy;
+    const createdBy =
+      donation.updatedBy || donation.createdBy || donation.collectedBy;
 
-    if (!itemName) {
-      return buildResponse(DataConstant.BAD_REQUEST, "Donation itemName missing");
-    }
-
-    const nature = decideItemNature(itemName);
-
-    if (nature === "ASSET") {
+    if (itemMaster.itemNature === "ASSET") {
       const asset = await findOrCreateAsset({
         dharamshalaId,
-        itemName,
-        unit,
+        itemMaster,
         createdBy,
       });
 
       const transaction = await createAssetTransaction({
         dharamshalaId,
+        itemMaster,
         asset,
         transactionType: "DONATION",
         quantity,
         unit,
         amount: 0,
         donationId,
-        donorName:
-          donation.externalDonorName ||
-          donation.donorUserId?.name ||
-          "",
+        donorName: donation.externalDonorName || "",
         donorMobile: donation.externalMobileNumber || "",
         referenceNumber: donation.receiptNumber || "",
         remarks: `Auto synced from donation ${donation.receiptNumber || ""}`,
@@ -416,13 +308,13 @@ exports.syncDonationItemToAssetOrInventory = async (donationId) => {
 
     const inventoryItem = await findOrCreateInventoryItem({
       dharamshalaId,
-      itemName,
-      unit,
+      itemMaster,
       createdBy,
     });
 
     const transaction = await createStockTransaction({
       dharamshalaId,
+      itemMaster,
       item: inventoryItem,
       transactionType: "DONATION",
       quantity,
@@ -454,19 +346,22 @@ exports.syncDonationItemToAssetOrInventory = async (donationId) => {
   }
 };
 
-/**
- * Expense items sync
- */
 exports.syncExpenseItemToAssetOrInventory = async (expenseId) => {
   try {
     if (!expenseId) {
-      return buildResponse(DataConstant.BAD_REQUEST, "expenseId is required");
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "expenseId is required"
+      );
     }
 
     const expense = await DharamshalaExpense.findById(expenseId).lean();
 
     if (!expense) {
-      return buildResponse(DataConstant.NOT_FOUND, "Expense not found");
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
+        "Expense not found"
+      );
     }
 
     const expenseItems = await DharamshalaExpenseItem.find({
@@ -475,7 +370,7 @@ exports.syncExpenseItemToAssetOrInventory = async (expenseId) => {
 
     if (!expenseItems.length) {
       return buildResponse(
-        DataConstant.BAD_REQUEST,
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "No expense items found"
       );
     }
@@ -492,7 +387,7 @@ exports.syncExpenseItemToAssetOrInventory = async (expenseId) => {
 
     if (alreadyAssetTxn || alreadyStockTxn) {
       return buildResponse(
-        DataConstant.CONFLICT,
+        DataConstant.CLIENT_ERROR.CONFLICT,
         "Expense already synced",
         alreadyAssetTxn || alreadyStockTxn
       );
@@ -500,26 +395,46 @@ exports.syncExpenseItemToAssetOrInventory = async (expenseId) => {
 
     const synced = [];
 
-    for (const item of expenseItems) {
-      const nature = decideItemNature(item.itemName, item.itemType);
+    for (const expenseItem of expenseItems) {
+      if (!expenseItem.itemId) {
+        synced.push({
+          type: "SKIPPED",
+          itemName: expenseItem.itemName,
+          reason: "itemId missing in expense item",
+        });
+        continue;
+      }
 
-      if (nature === "ASSET") {
+      const itemMaster = await getItemMaster(expenseItem.itemId);
+
+      if (!itemMaster) {
+        synced.push({
+          type: "SKIPPED",
+          itemName: expenseItem.itemName,
+          reason: "Dharamshala item not found",
+        });
+        continue;
+      }
+
+      if (itemMaster.itemNature === "ASSET") {
         const asset = await findOrCreateAsset({
           dharamshalaId: expense.dharamshalaId,
-          itemName: item.itemName,
-          unit: item.unit,
-          currentValue: item.amount,
+          itemMaster,
           createdBy: expense.createdBy,
         });
 
         const transaction = await createAssetTransaction({
           dharamshalaId: expense.dharamshalaId,
+          itemMaster,
           asset,
           transactionType: "PURCHASE",
-          quantity: item.quantity || 1,
-          unit: item.unit || "Piece",
-          rate: item.rate || 0,
-          amount: item.amount || expense.amount || 0,
+          quantity: expenseItem.quantity || 1,
+          unit:
+            expenseItem.unit ||
+            itemMaster.defaultUnit ||
+            "Piece",
+          rate: expenseItem.rate || 0,
+          amount: expenseItem.amount || expense.amount || 0,
           expenseId,
           supplierName: expense.vendorName || "",
           referenceNumber: expense.expenseNumber || expense.billNumber || "",
@@ -529,25 +444,28 @@ exports.syncExpenseItemToAssetOrInventory = async (expenseId) => {
 
         synced.push({
           type: "ASSET",
-          itemName: item.itemName,
+          itemName: itemMaster.itemName,
           transaction,
         });
       } else {
         const inventoryItem = await findOrCreateInventoryItem({
           dharamshalaId: expense.dharamshalaId,
-          itemName: item.itemName,
-          unit: item.unit,
+          itemMaster,
           createdBy: expense.createdBy,
         });
 
         const transaction = await createStockTransaction({
           dharamshalaId: expense.dharamshalaId,
+          itemMaster,
           item: inventoryItem,
           transactionType: "PURCHASE",
-          quantity: item.quantity || 1,
-          unit: item.unit || "Piece",
-          rate: item.rate || 0,
-          amount: item.amount || 0,
+          quantity: expenseItem.quantity || 1,
+          unit:
+            expenseItem.unit ||
+            itemMaster.defaultUnit ||
+            "Piece",
+          rate: expenseItem.rate || 0,
+          amount: expenseItem.amount || 0,
           expenseId,
           referenceNumber: expense.expenseNumber || expense.billNumber || "",
           remarks: `Auto synced from expense ${expense.expenseNumber || ""}`,
@@ -556,7 +474,7 @@ exports.syncExpenseItemToAssetOrInventory = async (expenseId) => {
 
         synced.push({
           type: "INVENTORY",
-          itemName: item.itemName,
+          itemName: itemMaster.itemName,
           transaction,
         });
       }

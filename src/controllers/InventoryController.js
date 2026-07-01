@@ -120,3 +120,19 @@ exports.blockUnblockAssetController = async (req, res) => {
   const result = await inventoryService.blockUnblockAsset(req.body);
   return res.status(result.responseCode).json(result);
 };
+
+
+exports.addUpdateItemController = async (req, res) => {
+  const result = await inventoryService.addUpdateItem(req.body);
+  return res.status(result.responseCode).json(result);
+};
+
+exports.getAllItemsController = async (req, res) => {
+  const result = await inventoryService.getAllItems(req.query);
+  return res.status(result.responseCode).json(result);
+};
+
+exports.blockUnblockItemController = async (req, res) => {
+  const result = await inventoryService.blockUnblockItem(req.body);
+  return res.status(result.responseCode).json(result);
+};
