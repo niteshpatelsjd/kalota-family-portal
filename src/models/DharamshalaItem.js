@@ -64,10 +64,22 @@ const DharamshalaItemSchema = new mongoose.Schema(
       default: "OTHER",
     },
 
-    defaultUnit: {
-      type: String,
-      default: "Piece",
-    },
+defaultUnit: {
+  type: String,
+  enum: [
+    "Piece", "Number", "Set", "Pair", "Dozen", "Gross",
+    "Kit", "Lot", "Pack", "Packet", "Box", "Carton",
+    "Bundle", "Bag", "Sack", "Roll", "Coil", "Sheet",
+    "Rod", "Bottle", "Can", "Jar", "Tin", "Tube", "Tray",
+    "Kilogram", "Gram", "Milligram", "Quintal", "Tonne",
+    "Litre", "Millilitre", "Gallon", "Metre", "Centimetre",
+    "Millimetre", "Kilometre", "Foot", "Inch",
+    "Square Metre", "Square Foot", "Square Yard",
+    "Cubic Metre", "Cubic Foot", "Acre", "Hectare",
+    "Room", "Bed", "Plate", "Serving", "Other"
+  ],
+  default: "Piece",
+},
 
     description: {
       type: String,

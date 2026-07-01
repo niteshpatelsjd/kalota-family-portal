@@ -188,9 +188,20 @@ exports.getAllItems = async (data) => {
       statusFlag = 1,
     } = data;
 
-    const filter = {
-      statusFlag: Number(statusFlag),
-    };
+    const filter = {};
+
+    if (statusFlag !== "") {
+      const numericStatus = Number(statusFlag);
+
+      if (![1, 2].includes(numericStatus)) {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
+          "statusFlag should be 1 or 2"
+        );
+      }
+
+      filter.statusFlag = numericStatus;
+    }
 
     if (itemNature) filter.itemNature = itemNature;
     if (category) filter.category = category;
