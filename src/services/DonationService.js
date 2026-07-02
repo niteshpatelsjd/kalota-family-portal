@@ -42,6 +42,7 @@ async function createDonation(body, userId) {
       amount,
       itemId,
       quantity,
+      price,
       purpose,
       paymentMode,
       transactionReference,
@@ -146,6 +147,17 @@ async function createDonation(body, userId) {
       );
     }
 
+    if (
+      donationType === "ITEM" &&
+      (!price || Number(price) <= 0)
+    ) {
+      await session.abortTransaction();
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "price should be greater than zero for item donation"
+      );
+    }
+
     let selectedItem = null;
 
     if (donationType === "ITEM") {
@@ -207,6 +219,9 @@ async function createDonation(body, userId) {
       donationSource === "DIRECT_OFFICE" && donationType === "MONEY";
 
     const isItemDonation = donationType === "ITEM";
+    const donationAmount = isItemDonation
+      ? Number((Number(quantity) * Number(price)).toFixed(2))
+      : Number(amount);
 
     if (isOnlineMoney && !bankAccountId) {
       await session.abortTransaction();
@@ -275,7 +290,8 @@ async function createDonation(body, userId) {
           donationSource,
           donationType,
 
-          amount: donationType === "MONEY" ? Number(amount) : 0,
+          amount: donationAmount,
+          price: isItemDonation ? Number(price) : 0,
           itemId: isItemDonation ? selectedItem._id : null,
           itemName: isItemDonation ? selectedItem.itemName : "",
           quantity: donationType === "ITEM" ? Number(quantity) : 0,
@@ -310,12 +326,12 @@ async function createDonation(body, userId) {
           voucherType: "RECEIPT",
           category: "DONATION",
           purpose,
-          requestedAmount: donationType === "MONEY" ? Number(amount) : 0,
+          requestedAmount: donationAmount,
           requestedBy: userId || null,
           remarks: remarks || "",
           status: "APPROVED",
           approvedBy: userId || null,
-          approvedAmount: donationType === "MONEY" ? Number(amount) : 0,
+          approvedAmount: donationAmount,
           approvedDate: new Date(),
           createdBy: userId || null,
         },
@@ -328,7 +344,6 @@ async function createDonation(body, userId) {
     let ledger = null;
 
     if (isOnlineMoney) {
-      const donationAmount = Number(amount || 0);
       const ledgerNumber = await generateLedgerNumber();
 
       const ledgerResult = await DharamshalaLedger.create(

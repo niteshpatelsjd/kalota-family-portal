@@ -271,6 +271,8 @@ exports.syncDonationItemToAssetOrInventory = async (donationId) => {
     }
 
     const quantity = Number(donation.receivedQuantity || donation.quantity || 1);
+    const rate = Number(donation.price || 0);
+    const amount = Number((quantity * rate).toFixed(2));
     const unit = donation.unit || itemMaster.defaultUnit || "Piece";
     const dharamshalaId = donation.dharamshalaId;
     const createdBy =
@@ -290,7 +292,8 @@ exports.syncDonationItemToAssetOrInventory = async (donationId) => {
         transactionType: "DONATION",
         quantity,
         unit,
-        amount: 0,
+        rate,
+        amount,
         donationId,
         donorName: donation.externalDonorName || "",
         donorMobile: donation.externalMobileNumber || "",
@@ -319,7 +322,8 @@ exports.syncDonationItemToAssetOrInventory = async (donationId) => {
       transactionType: "DONATION",
       quantity,
       unit,
-      amount: 0,
+      rate,
+      amount,
       donationId,
       referenceNumber: donation.receiptNumber || "",
       remarks: `Auto synced from donation ${donation.receiptNumber || ""}`,

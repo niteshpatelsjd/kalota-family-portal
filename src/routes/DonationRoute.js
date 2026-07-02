@@ -98,7 +98,12 @@ const router = express.Router();
  *                 example: "MONEY"
  *               amount:
  *                 type: number
+ *                 description: Required for MONEY donations; calculated as quantity multiplied by price for ITEM donations.
  *                 example: 2100
+ *               price:
+ *                 type: number
+ *                 description: Price per unit, required for ITEM donations.
+ *                 example: 850
  *               itemName:
  *                 type: string
  *                 description: Derived from the selected item for ITEM donations.
@@ -163,6 +168,7 @@ const router = express.Router();
  *                 donationType: "ITEM"
  *                 itemId: "ITEM_ID"
  *                 quantity: 10
+ *                 price: 850
  *                 purpose: "Room Facility"
  *                 paymentMode: "NA"
  *                 collectedBy: "ADMIN_USER_ID"
