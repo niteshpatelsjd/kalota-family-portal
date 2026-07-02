@@ -1694,6 +1694,8 @@ exports.addAssetTransaction =
       const finalUnitPrice = Number(unitPrice ?? rate ?? 0);
       const quantityBefore =
         Number(asset.availableQuantity || 0);
+      const totalQuantityBefore =
+        Number(asset.totalQuantity || 0);
 
       const increaseTypes = [
         "OPENING",
@@ -1821,10 +1823,28 @@ exports.addAssetTransaction =
 
       await asset.save();
 
+      const updatedAsset = await DharamshalaAsset.findById(asset._id)
+        .populate("itemId", "itemCode itemName itemNature category defaultUnit")
+        .lean();
+
+      logger.info("addAssetTransaction quantity updated", {
+        assetId: asset._id,
+        transactionId: transaction._id,
+        transactionType,
+        transactionQuantity: qty,
+        totalQuantityBefore,
+        totalQuantityAfter: updatedAsset.totalQuantity,
+        availableQuantityBefore: quantityBefore,
+        availableQuantityAfter: updatedAsset.availableQuantity,
+      });
+
       return buildResponse(
         DataConstant.SUCCESS.OK,
         "Asset transaction added successfully",
-        transaction
+        {
+          transaction,
+          asset: updatedAsset,
+        }
       );
     } catch (err) {
       logger.error("addAssetTransaction error", {

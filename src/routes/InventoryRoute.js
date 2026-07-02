@@ -1075,7 +1075,7 @@ router.get(
  *
  *     responses:
  *       200:
- *         description: Asset transaction added successfully.
+ *         description: Asset transaction added successfully with the updated asset quantities.
  */
 router.post(
   "/addAssetTransaction",
