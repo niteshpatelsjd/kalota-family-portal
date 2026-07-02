@@ -30,7 +30,9 @@ const DharamshalaInventoryTransactionSchema = new mongoose.Schema(
         "DAMAGE",
         "LOST",
         "RETURN",
-        "ADJUSTMENT",
+        "TRANSFER",
+        "ADJUSTMENT_IN",
+        "ADJUSTMENT_OUT",
       ],
       required: true,
     },
@@ -87,12 +89,11 @@ const DharamshalaInventoryTransactionSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-// DharamshalaAsset
-itemId: {
-  type: mongoose.Schema.Types.ObjectId,
-  ref: "dharamshala_item",
-  required: true,
-},
+    itemId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "dharamshala_item",
+      required: true,
+    },
     remarks: {
       type: String,
       default: "",

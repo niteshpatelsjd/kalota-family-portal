@@ -42,6 +42,22 @@ const normalizeItemName = (name = "") =>
     .replace(/\s+/g, " ")
     .replace(/s$/, "");
 
+const resolveItemMasterId = async ({ itemId, itemName, itemNature }) => {
+  const filter = itemId
+    ? { _id: itemId, itemNature, statusFlag: 1 }
+    : {
+        normalizedName: normalizeItemName(itemName),
+        itemNature,
+        statusFlag: 1,
+      };
+
+  const itemMaster = await DharamshalaItem.findOne(filter)
+    .select("_id")
+    .lean();
+
+  return itemMaster?._id || null;
+};
+
 exports.addUpdateItem = async (data) => {
   try {
     const {
@@ -365,6 +381,19 @@ exports.addStockTransaction = async (data) => {
       );
     }
 
+    const masterItemId = await resolveItemMasterId({
+      itemId: item.itemId,
+      itemName: item.itemName,
+      itemNature: "INVENTORY",
+    });
+
+    if (!masterItemId) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Inventory item is not linked to an active item master"
+      );
+    }
+
     const stockBefore = Number(item.currentStock || 0);
     const qty = Number(quantity);
 
@@ -415,6 +444,7 @@ exports.addStockTransaction = async (data) => {
     const transaction =
       await DharamshalaInventoryTransaction.create({
         dharamshalaId,
+        itemId: masterItemId,
         inventoryItemId,
         transactionNumber,
         transactionType,
@@ -433,6 +463,7 @@ exports.addStockTransaction = async (data) => {
       });
 
     item.currentStock = stockAfter;
+    item.itemId = masterItemId;
     item.updatedBy = createdBy;
 
     await item.save();
@@ -1324,6 +1355,19 @@ exports.addAssetTransaction =
         );
       }
 
+      const masterItemId = await resolveItemMasterId({
+        itemId: asset.itemId,
+        itemName: asset.assetName,
+        itemNature: "ASSET",
+      });
+
+      if (!masterItemId) {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
+          "Asset is not linked to an active item master"
+        );
+      }
+
       const qty = Number(quantity);
       const quantityBefore =
         Number(asset.availableQuantity || 0);
@@ -1393,6 +1437,7 @@ exports.addAssetTransaction =
       const transaction =
         await DharamshalaAssetTransaction.create({
           dharamshalaId,
+          itemId: masterItemId,
           assetId,
           transactionNumber,
           transactionType,
@@ -1414,6 +1459,7 @@ exports.addAssetTransaction =
         });
 
       asset.availableQuantity = quantityAfter;
+      asset.itemId = masterItemId;
       asset.unit = unit;
       asset.totalPurchaseCost =
         Number(asset.totalPurchaseCost || 0) +

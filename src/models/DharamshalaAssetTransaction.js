@@ -111,12 +111,11 @@ const DharamshalaAssetTransactionSchema =
         default: "",
       },
 
-      // DharamshalaAsset
-itemId: {
-  type: mongoose.Schema.Types.ObjectId,
-  ref: "dharamshala_item",
-  required: true,
-},
+      itemId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "dharamshala_item",
+        required: true,
+      },
 
       createdBy: {
         type: mongoose.Schema.Types.ObjectId,
