@@ -549,6 +549,32 @@ router.post(
  *     responses:
  *       200:
  *         description: Inventory items fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *             example:
+ *               responseCode: 200
+ *               message: Inventory items fetched successfully
+ *               responseBody:
+ *                 content:
+ *                   - _id: "INVENTORY_ITEM_ID"
+ *                     itemId: "MASTER_ITEM_ID"
+ *                     itemCode: "ITEM-001"
+ *                     itemName: "Cement"
+ *                     category: "CONSTRUCTION_MATERIAL"
+ *                     unit: "Bag"
+ *                     currentStock: 25
+ *                     minimumStock: 5
+ *                     stockStatus: "IN_STOCK"
+ *                     averageUnitPrice: 420
+ *                     totalStockValue: 10500
+ *                     lastPurchaseUnitPrice: 430
+ *                     updatedAt: "2026-07-02T10:00:00.000Z"
+ *                 pageIndex: 0
+ *                 pageSize: 10
+ *                 totalElements: 1
+ *                 totalPages: 1
  *       500:
  *         description: Internal server error
  */

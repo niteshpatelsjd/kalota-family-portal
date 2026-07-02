@@ -821,9 +821,11 @@ exports.addOrUpdateInventoryItem =
         statusFlag = 1,
       } = data;
 
-      const filter = {
-        statusFlag: Number(statusFlag),
-      };
+      const filter = {};
+
+      if (statusFlag !== "") {
+        filter.statusFlag = Number(statusFlag);
+      }
 
       if (dharamshalaId) {
         filter.dharamshalaId = dharamshalaId;
@@ -889,15 +891,6 @@ exports.addOrUpdateInventoryItem =
 
       const items =
         await DharamshalaInventoryItem.find(filter)
-          .populate("dharamshalaId", "name")
-          .populate(
-            "createdBy",
-            "name mobileNumber profileUrl"
-          )
-          .populate(
-            "updatedBy",
-            "name mobileNumber profileUrl"
-          )
           .sort({
             createdAt: -1,
           })
@@ -905,11 +898,140 @@ exports.addOrUpdateInventoryItem =
           .limit(limit)
           .lean();
 
+      const inventoryItemIds = items.map((item) => item._id);
+
+      const [pricingResult] = inventoryItemIds.length
+        ? await DharamshalaInventoryTransaction.aggregate([
+            {
+              $match: {
+                inventoryItemId: { $in: inventoryItemIds },
+                statusFlag: 1,
+              },
+            },
+            {
+              $addFields: {
+                effectiveUnitPrice: {
+                  $cond: [
+                    { $gt: ["$unitPrice", 0] },
+                    "$unitPrice",
+                    { $ifNull: ["$rate", 0] },
+                  ],
+                },
+                effectiveTotalAmount: {
+                  $cond: [
+                    { $gt: ["$totalAmount", 0] },
+                    "$totalAmount",
+                    { $ifNull: ["$amount", 0] },
+                  ],
+                },
+              },
+            },
+            {
+              $facet: {
+                valuation: [
+                  {
+                    $match: {
+                      transactionType: {
+                        $in: ["OPENING", "PURCHASE", "DONATION"],
+                      },
+                      effectiveUnitPrice: { $gt: 0 },
+                    },
+                  },
+                  {
+                    $group: {
+                      _id: "$inventoryItemId",
+                      totalQuantity: { $sum: "$quantity" },
+                      totalValue: {
+                        $sum: {
+                          $cond: [
+                            { $gt: ["$effectiveTotalAmount", 0] },
+                            "$effectiveTotalAmount",
+                            {
+                              $multiply: [
+                                "$quantity",
+                                "$effectiveUnitPrice",
+                              ],
+                            },
+                          ],
+                        },
+                      },
+                    },
+                  },
+                ],
+                lastPurchase: [
+                  { $match: { transactionType: "PURCHASE" } },
+                  { $sort: { createdAt: -1 } },
+                  {
+                    $group: {
+                      _id: "$inventoryItemId",
+                      lastPurchaseUnitPrice: {
+                        $first: "$effectiveUnitPrice",
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          ])
+        : [{ valuation: [], lastPurchase: [] }];
+
+      const valuationByItem = new Map(
+        (pricingResult?.valuation || []).map((entry) => [
+          String(entry._id),
+          entry,
+        ])
+      );
+      const lastPurchaseByItem = new Map(
+        (pricingResult?.lastPurchase || []).map((entry) => [
+          String(entry._id),
+          Number(entry.lastPurchaseUnitPrice || 0),
+        ])
+      );
+
+      const content = items.map((item) => {
+        const currentStock = Number(item.currentStock || 0);
+        const minimumStock = Number(item.minimumStock || 0);
+        const valuation = valuationByItem.get(String(item._id));
+        const averageUnitPrice =
+          valuation && Number(valuation.totalQuantity) > 0
+            ? Number(
+                (
+                  Number(valuation.totalValue) /
+                  Number(valuation.totalQuantity)
+                ).toFixed(2)
+              )
+            : 0;
+
+        return {
+          _id: item._id,
+          itemId: item.itemId,
+          itemCode: item.itemCode,
+          itemName: item.itemName,
+          category: item.category,
+          unit: item.unit,
+          currentStock,
+          minimumStock,
+          stockStatus:
+            currentStock <= 0
+              ? "OUT_OF_STOCK"
+              : currentStock <= minimumStock
+                ? "LOW_STOCK"
+                : "IN_STOCK",
+          averageUnitPrice,
+          totalStockValue: Number(
+            (currentStock * averageUnitPrice).toFixed(2)
+          ),
+          lastPurchaseUnitPrice:
+            lastPurchaseByItem.get(String(item._id)) || 0,
+          updatedAt: item.updatedAt,
+        };
+      });
+
       return buildResponse(
         DataConstant.SUCCESS.OK,
         "Inventory items fetched successfully",
         {
-          content: items,
+          content,
           pageIndex: Number(pageIndex),
           pageSize: Number(pageSize),
           totalElements,
