@@ -50,8 +50,20 @@ const DharamshalaExpenseItemSchema =
         default: 0,
       },
 
+      unitPrice: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
       amount: {
         type: Number,
+        required: true,
+      },
+
+      totalAmount: {
+        type: Number,
+        min: 0,
         required: true,
       },
 

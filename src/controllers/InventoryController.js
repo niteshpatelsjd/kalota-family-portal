@@ -85,6 +85,21 @@ exports.blockUnblockInventoryItem =
       .json(result);
   };
 
+exports.updateMinimumStock = async (req, res) => {
+  const result = await inventoryService.updateMinimumStock({
+    ...req.body,
+    updatedBy:
+      req.body.updatedBy ||
+      req.user?._id ||
+      req.user?.id ||
+      null,
+  });
+
+  return res
+    .status(result.responseCode)
+    .json(result);
+};
+
 exports.addOrUpdateAssetController = async (req, res) => {
   const result =
     await inventoryService.addOrUpdateAsset(

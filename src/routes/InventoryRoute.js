@@ -420,6 +420,9 @@ router.post(
  *                 type: string
  *                 description: Required while creating.
  *                 example: "6a299762c760d49fa2a5af44"
+ *               itemId:
+ *                 type: string
+ *                 description: Active global item-master id. Required while creating.
  *               itemName:
  *                 type: string
  *                 example: "Cement"
@@ -442,9 +445,12 @@ router.post(
  *                 example: "Bag"
  *               currentStock:
  *                 type: number
- *                 example: 100
+ *                 readOnly: true
+ *                 description: Updated only through stock transactions.
+ *                 example: 0
  *               minimumStock:
  *                 type: number
+ *                 description: Initial threshold. Use updateMinimumStock for later changes.
  *                 example: 20
  *               location:
  *                 type: string
@@ -622,6 +628,43 @@ router.post(
   inventoryController.blockUnblockInventoryItem
 );
 
+/**
+ * @openapi
+ * /admin/inventory/updateMinimumStock:
+ *   patch:
+ *     tags: [Inventory Controller]
+ *     summary: Update minimum stock
+ *     description: Updates the Dharamshala-specific low-stock threshold without changing current stock.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - inventoryItemId
+ *               - minimumStock
+ *             properties:
+ *               inventoryItemId:
+ *                 type: string
+ *               minimumStock:
+ *                 type: number
+ *                 minimum: 0
+ *               updatedBy:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Minimum stock updated successfully
+ *       400:
+ *         description: Validation error
+ *       404:
+ *         description: Inventory item not found
+ */
+router.patch(
+  "/updateMinimumStock",
+  inventoryController.updateMinimumStock
+);
+
 
 /**
  * @openapi
@@ -676,11 +719,14 @@ router.post(
  *               unit:
  *                 type: string
  *                 example: "Bag"
- *               rate:
+ *               unitPrice:
  *                 type: number
+ *                 description: Required for PURCHASE transactions.
  *                 example: 400
- *               amount:
+ *               totalAmount:
  *                 type: number
+ *                 readOnly: true
+ *                 description: Calculated by the server for PURCHASE transactions.
  *                 example: 20000
  *               sourceType:
  *                 type: string

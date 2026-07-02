@@ -108,20 +108,71 @@ const prepareExpenseItems = async ({ items, session }) => {
     const itemMaster = item.itemId
       ? itemMasterById.get(String(item.itemId))
       : null;
+    const quantity = Number(item.quantity || 1);
+    const unitPrice = Number(item.unitPrice ?? item.rate ?? 0);
+    const isMaterial = (item.itemType || "MATERIAL") === "MATERIAL";
+    const totalAmount =
+      unitPrice > 0
+        ? Number((quantity * unitPrice).toFixed(2))
+        : Number(item.totalAmount ?? item.amount ?? 0);
 
     return {
       itemId: itemMaster?._id || null,
       itemType: item.itemType || "MATERIAL",
       itemName: itemMaster?.itemName || item.itemName,
-      quantity: item.quantity || 1,
+      quantity,
       unit: item.unit || itemMaster?.defaultUnit || "",
-      rate: item.rate || 0,
-      amount: item.amount || 0,
+      unitPrice,
+      totalAmount,
+      rate: unitPrice,
+      amount: totalAmount,
       remarks: item.remarks || "",
+      validationError:
+        isMaterial && unitPrice <= 0
+          ? "unitPrice should be greater than zero"
+          : quantity <= 0
+            ? "quantity should be greater than zero"
+            : totalAmount < 0
+              ? "totalAmount cannot be negative"
+              : null,
     };
   });
 
+  const invalidPreparedIndex = preparedItems.findIndex(
+    (item) => item.validationError
+  );
+
+  if (invalidPreparedIndex !== -1) {
+    return {
+      error: `${preparedItems[invalidPreparedIndex].validationError} for item at index ${invalidPreparedIndex}`,
+    };
+  }
+
+  preparedItems.forEach((item) => {
+    delete item.validationError;
+  });
+
   return { items: preparedItems };
+};
+
+const validateExpenseItemsTotal = ({ expenseType, amount, items }) => {
+  if (expenseType === "PURCHASE" && items.length === 0) {
+    return "At least one item is required for purchase expense";
+  }
+
+  if (items.length === 0) return null;
+
+  const calculatedTotal = Number(
+    items
+      .reduce((total, item) => total + Number(item.totalAmount || 0), 0)
+      .toFixed(2)
+  );
+
+  if (Math.abs(Number(amount) - calculatedTotal) > 0.009) {
+    return `Expense amount should match item total ${calculatedTotal}`;
+  }
+
+  return null;
 };
 
 /* ─────────────────────────────────────
@@ -2267,6 +2318,21 @@ exports.addDirectBankExpense = async (data) => {
       );
     }
 
+    const itemTotalError = validateExpenseItemsTotal({
+      expenseType,
+      amount,
+      items: preparedItemsResult.items,
+    });
+
+    if (itemTotalError) {
+      await session.abortTransaction();
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        itemTotalError,
+        null
+      );
+    }
+
     const bankAccount = await DharamshalaBankAccount.findById(bankAccountId).session(session);
 
     if (!bankAccount) {
@@ -2375,6 +2441,8 @@ exports.addDirectBankExpense = async (data) => {
         itemName: item.itemName,
         quantity: item.quantity,
         unit: item.unit,
+        unitPrice: item.unitPrice,
+        totalAmount: item.totalAmount,
         rate: item.rate,
         amount: item.amount,
         remarks: item.remarks,
@@ -2482,6 +2550,21 @@ exports.addExpenseAgainstAdvance = async (data) => {
       );
     }
 
+    const itemTotalError = validateExpenseItemsTotal({
+      expenseType,
+      amount,
+      items: preparedItemsResult.items,
+    });
+
+    if (itemTotalError) {
+      await session.abortTransaction();
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        itemTotalError,
+        null
+      );
+    }
+
     const voucher = await DharamshalaVoucher.findById(voucherId).session(session);
 
     if (!voucher) {
@@ -2554,6 +2637,8 @@ exports.addExpenseAgainstAdvance = async (data) => {
         itemName: item.itemName,
         quantity: item.quantity,
         unit: item.unit,
+        unitPrice: item.unitPrice,
+        totalAmount: item.totalAmount,
         rate: item.rate,
         amount: item.amount,
         remarks: item.remarks,

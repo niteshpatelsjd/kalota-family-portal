@@ -191,6 +191,8 @@ const createStockTransaction = async ({
     transactionType,
     quantity: qty,
     unit: unit || item.unit || itemMaster.defaultUnit || "Piece",
+    unitPrice: Number(rate || 0),
+    totalAmount: Number(amount || 0),
     rate: Number(rate || 0),
     amount: Number(amount || 0),
     stockBefore,
@@ -271,7 +273,9 @@ exports.syncDonationItemToAssetOrInventory = async (donationId) => {
     }
 
     const quantity = Number(donation.receivedQuantity || donation.quantity || 1);
-    const rate = Number(donation.price || 0);
+    const rate = Number(
+      donation.estimatedUnitPrice || donation.price || 0
+    );
     const amount = Number((quantity * rate).toFixed(2));
     const unit = donation.unit || itemMaster.defaultUnit || "Piece";
     const dharamshalaId = donation.dharamshalaId;
@@ -437,8 +441,12 @@ exports.syncExpenseItemToAssetOrInventory = async (expenseId) => {
             expenseItem.unit ||
             itemMaster.defaultUnit ||
             "Piece",
-          rate: expenseItem.rate || 0,
-          amount: expenseItem.amount || expense.amount || 0,
+          rate: expenseItem.unitPrice || expenseItem.rate || 0,
+          amount:
+            expenseItem.totalAmount ||
+            expenseItem.amount ||
+            expense.amount ||
+            0,
           expenseId,
           supplierName: expense.vendorName || "",
           referenceNumber: expense.expenseNumber || expense.billNumber || "",
@@ -468,8 +476,9 @@ exports.syncExpenseItemToAssetOrInventory = async (expenseId) => {
             expenseItem.unit ||
             itemMaster.defaultUnit ||
             "Piece",
-          rate: expenseItem.rate || 0,
-          amount: expenseItem.amount || 0,
+          rate: expenseItem.unitPrice || expenseItem.rate || 0,
+          amount:
+            expenseItem.totalAmount || expenseItem.amount || 0,
           expenseId,
           referenceNumber: expense.expenseNumber || expense.billNumber || "",
           remarks: `Auto synced from expense ${expense.expenseNumber || ""}`,

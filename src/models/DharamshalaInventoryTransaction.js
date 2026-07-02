@@ -52,8 +52,20 @@ const DharamshalaInventoryTransactionSchema = new mongoose.Schema(
       default: 0,
     },
 
+    unitPrice: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
     amount: {
       type: Number,
+      default: 0,
+    },
+
+    totalAmount: {
+      type: Number,
+      min: 0,
       default: 0,
     },
 

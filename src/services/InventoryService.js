@@ -333,6 +333,7 @@ exports.addStockTransaction = async (data) => {
       transactionType,
       quantity,
       unit = "Piece",
+      unitPrice,
       rate = 0,
       amount,
       sourceType = "MANUAL",
@@ -378,6 +379,15 @@ exports.addStockTransaction = async (data) => {
       return buildResponse(
         DataConstant.CLIENT_ERROR.NOT_FOUND,
         "Inventory item not found"
+      );
+    }
+
+    const finalUnitPrice = Number(unitPrice ?? rate ?? 0);
+
+    if (transactionType === "PURCHASE" && finalUnitPrice <= 0) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "unitPrice should be greater than zero for purchase"
       );
     }
 
@@ -437,9 +447,11 @@ exports.addStockTransaction = async (data) => {
       await generateStockTransactionNumber();
 
     const finalAmount =
-      amount !== undefined
-        ? Number(amount || 0)
-        : Number(rate || 0) * qty;
+      transactionType === "PURCHASE"
+        ? Number((finalUnitPrice * qty).toFixed(2))
+        : amount !== undefined
+          ? Number(amount || 0)
+          : Number((finalUnitPrice * qty).toFixed(2));
 
     const transaction =
       await DharamshalaInventoryTransaction.create({
@@ -450,7 +462,9 @@ exports.addStockTransaction = async (data) => {
         transactionType,
         quantity: qty,
         unit,
-        rate: Number(rate || 0),
+        unitPrice: finalUnitPrice,
+        totalAmount: finalAmount,
+        rate: finalUnitPrice,
         amount: finalAmount,
         stockBefore,
         stockAfter,
@@ -666,10 +680,10 @@ exports.addOrUpdateInventoryItem =
       const {
         id,
         dharamshalaId,
+        itemId,
         itemName,
         category,
         unit = "Piece",
-        currentStock = 0,
         minimumStock = 0,
         location = "",
         remarks = "",
@@ -702,11 +716,23 @@ exports.addOrUpdateInventoryItem =
           );
         }
 
+        const masterItemId = await resolveItemMasterId({
+          itemId: itemId || item.itemId,
+          itemName,
+          itemNature: "INVENTORY",
+        });
+
+        if (!masterItemId) {
+          return buildResponse(
+            DataConstant.CLIENT_ERROR.BAD_REQUEST,
+            "A valid active inventory item master is required"
+          );
+        }
+
+        item.itemId = masterItemId;
         item.itemName = itemName;
         item.category = category;
         item.unit = unit;
-        item.currentStock = Number(currentStock || 0);
-        item.minimumStock = Number(minimumStock || 0);
         item.location = location;
         item.remarks = remarks;
         item.updatedBy = updatedBy || createdBy;
@@ -727,17 +753,31 @@ exports.addOrUpdateInventoryItem =
         );
       }
 
+      const masterItemId = await resolveItemMasterId({
+        itemId,
+        itemName,
+        itemNature: "INVENTORY",
+      });
+
+      if (!masterItemId) {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.BAD_REQUEST,
+          "A valid active inventory item master is required"
+        );
+      }
+
       const itemCode =
         await generateInventoryItemCode();
 
       const item =
         await DharamshalaInventoryItem.create({
           dharamshalaId,
+          itemId: masterItemId,
           itemCode,
           itemName,
           category,
           unit,
-          currentStock: Number(currentStock || 0),
+          currentStock: 0,
           minimumStock: Number(minimumStock || 0),
           location,
           remarks,
@@ -1004,6 +1044,80 @@ exports.addOrUpdateInventoryItem =
       );
     }
   };
+
+exports.updateMinimumStock = async (data) => {
+  try {
+    const { inventoryItemId, minimumStock, updatedBy } = data;
+
+    if (!inventoryItemId) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "inventoryItemId is required"
+      );
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(inventoryItemId)) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Invalid inventoryItemId"
+      );
+    }
+
+    if (
+      minimumStock === undefined ||
+      minimumStock === null ||
+      minimumStock === "" ||
+      !Number.isFinite(Number(minimumStock)) ||
+      Number(minimumStock) < 0
+    ) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "minimumStock should be zero or greater"
+      );
+    }
+
+    const item = await DharamshalaInventoryItem.findById(
+      inventoryItemId
+    );
+
+    if (!item) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
+        "Inventory item not found"
+      );
+    }
+
+    item.minimumStock = Number(minimumStock);
+    item.updatedBy = updatedBy || item.updatedBy || null;
+    await item.save();
+
+    const currentStock = Number(item.currentStock || 0);
+    const stockStatus =
+      currentStock <= 0
+        ? "OUT_OF_STOCK"
+        : currentStock <= Number(item.minimumStock || 0)
+          ? "LOW_STOCK"
+          : "IN_STOCK";
+
+    return buildResponse(
+      DataConstant.SUCCESS.OK,
+      "Minimum stock updated successfully",
+      { item, stockStatus }
+    );
+  } catch (err) {
+    logger.error("updateMinimumStock service error", {
+      error: err.message,
+      stack: err.stack,
+      request: data,
+    });
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+};
 
 
 exports.getAllAssets = async (data) => {

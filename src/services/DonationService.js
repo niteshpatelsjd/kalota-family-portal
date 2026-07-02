@@ -42,6 +42,7 @@ async function createDonation(body, userId) {
       amount,
       itemId,
       quantity,
+      estimatedUnitPrice,
       price,
       purpose,
       paymentMode,
@@ -147,14 +148,16 @@ async function createDonation(body, userId) {
       );
     }
 
+    const finalEstimatedUnitPrice = Number(estimatedUnitPrice || price || 0);
+
     if (
       donationType === "ITEM" &&
-      (!price || Number(price) <= 0)
+      finalEstimatedUnitPrice <= 0
     ) {
       await session.abortTransaction();
       return buildResponse(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
-        "price should be greater than zero for item donation"
+        "estimatedUnitPrice should be greater than zero for item donation"
       );
     }
 
@@ -219,9 +222,12 @@ async function createDonation(body, userId) {
       donationSource === "DIRECT_OFFICE" && donationType === "MONEY";
 
     const isItemDonation = donationType === "ITEM";
-    const donationAmount = isItemDonation
-      ? Number((Number(quantity) * Number(price)).toFixed(2))
-      : Number(amount);
+    const estimatedTotalValue = isItemDonation
+      ? Number(
+          (Number(quantity) * finalEstimatedUnitPrice).toFixed(2)
+        )
+      : 0;
+    const donationAmount = isItemDonation ? 0 : Number(amount);
 
     if (isOnlineMoney && !bankAccountId) {
       await session.abortTransaction();
@@ -291,7 +297,11 @@ async function createDonation(body, userId) {
           donationType,
 
           amount: donationAmount,
-          price: isItemDonation ? Number(price) : 0,
+          price: 0,
+          estimatedUnitPrice: isItemDonation
+            ? finalEstimatedUnitPrice
+            : 0,
+          estimatedTotalValue,
           itemId: isItemDonation ? selectedItem._id : null,
           itemName: isItemDonation ? selectedItem.itemName : "",
           quantity: donationType === "ITEM" ? Number(quantity) : 0,
@@ -326,12 +336,12 @@ async function createDonation(body, userId) {
           voucherType: "RECEIPT",
           category: "DONATION",
           purpose,
-          requestedAmount: donationAmount,
+          requestedAmount: isItemDonation ? 0 : donationAmount,
           requestedBy: userId || null,
           remarks: remarks || "",
           status: "APPROVED",
           approvedBy: userId || null,
-          approvedAmount: donationAmount,
+          approvedAmount: isItemDonation ? 0 : donationAmount,
           approvedDate: new Date(),
           createdBy: userId || null,
         },

@@ -71,6 +71,18 @@ const DharamshalaDonationSchema = new mongoose.Schema(
       default: 0,
     },
 
+    estimatedUnitPrice: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
+    estimatedTotalValue: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
     itemName: {
       type: String,
       default: "",

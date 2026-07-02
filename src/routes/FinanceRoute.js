@@ -452,6 +452,7 @@ router.post(
  *                 format: date
  *               amount:
  *                 type: number
+ *                 description: Must match the sum of all calculated item totalAmount values when items are provided.
  *               category:
  *                 type: string
  *               transactionType:
@@ -757,10 +758,13 @@ router.get(
  *                       type: number
  *                     unit:
  *                       type: string
- *                     rate:
+ *                     unitPrice:
  *                       type: number
- *                     amount:
+ *                       description: Required and must be greater than zero for MATERIAL items.
+ *                     totalAmount:
  *                       type: number
+ *                       readOnly: true
+ *                       description: Calculated by the server as quantity multiplied by unitPrice.
  *                     remarks:
  *                       type: string
  *           example:
@@ -772,7 +776,7 @@ router.get(
  *             vendorMobile: "9876543210"
  *             billNumber: "INV-001"
  *             billDate: "2026-06-25"
- *             amount: 70000
+ *             amount: 25000
  *             paymentMode: "BANK"
  *             description: "Purchased utensils for kitchen"
  *             createdBy: "66b123456789012345678903"
@@ -781,8 +785,7 @@ router.get(
  *                 itemId: "66b123456789012345678904"
  *                 quantity: 100
  *                 unit: "Piece"
- *                 rate: 250
- *                 amount: 25000
+ *                 unitPrice: 250
  *     responses:
  *       200:
  *         description: Direct bank expense created successfully
@@ -844,6 +847,7 @@ router.post(
  *                 format: date
  *               amount:
  *                 type: number
+ *                 description: Must match the sum of all calculated item totalAmount values when items are provided.
  *               paymentMode:
  *                 type: string
  *                 enum:
@@ -879,10 +883,13 @@ router.post(
  *                       type: number
  *                     unit:
  *                       type: string
- *                     rate:
+ *                     unitPrice:
  *                       type: number
- *                     amount:
+ *                       description: Required and must be greater than zero for MATERIAL items.
+ *                     totalAmount:
  *                       type: number
+ *                       readOnly: true
+ *                       description: Calculated by the server as quantity multiplied by unitPrice.
  *                     remarks:
  *                       type: string
  *           example:
@@ -903,8 +910,7 @@ router.post(
  *                 itemId: "66b123456789012345678904"
  *                 quantity: 10
  *                 unit: "Piece"
- *                 rate: 850
- *                 amount: 8500
+ *                 unitPrice: 850
  *     responses:
  *       200:
  *         description: Expense settled against advance successfully
