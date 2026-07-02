@@ -103,6 +103,18 @@ const DharamshalaAssetSchema =
         default: 0,
       },
 
+      averageUnitPrice: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      estimatedDonationValue: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
       condition: {
         type: String,
         enum: [

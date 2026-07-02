@@ -129,6 +129,8 @@ const createAssetTransaction = async ({
     transactionType,
     quantity: qty,
     unit: unit || asset.unit || itemMaster.defaultUnit || "Piece",
+    unitPrice: Number(rate || 0),
+    totalAmount: Number(amount || 0),
     rate: Number(rate || 0),
     amount: Number(amount || 0),
     quantityBefore,
@@ -155,6 +157,24 @@ const createAssetTransaction = async ({
     asset.currentValue =
       Number(asset.currentValue || 0) + Number(amount || 0);
   }
+
+  if (transactionType === "DONATION") {
+    asset.estimatedDonationValue =
+      Number(asset.estimatedDonationValue || 0) + Number(amount || 0);
+
+    asset.currentValue =
+      Number(asset.currentValue || 0) + Number(amount || 0);
+  }
+
+  asset.averageUnitPrice =
+    Number(asset.totalQuantity || 0) > 0
+      ? Number(
+          (
+            Number(asset.currentValue || 0) /
+            Number(asset.totalQuantity)
+          ).toFixed(2)
+        )
+      : 0;
 
   asset.updatedBy = createdBy;
   await asset.save();
@@ -436,7 +456,7 @@ exports.syncExpenseItemToAssetOrInventory = async (expenseId) => {
             0,
           expenseId,
           supplierName: expense.vendorName || "",
-          referenceNumber: expense.expenseNumber || expense.billNumber || "",
+          referenceNumber: expense.expenseNumber,
           remarks: `Auto synced from expense ${expense.expenseNumber || ""}`,
           createdBy: expense.createdBy,
         });

@@ -1028,12 +1028,13 @@ router.get(
  *                 type: string
  *                 example: Piece
  *
- *               rate:
+ *               unitPrice:
  *                 type: number
  *                 example: 2500
  *
- *               amount:
+ *               totalAmount:
  *                 type: number
+ *                 description: Calculated as quantity multiplied by unitPrice when omitted.
  *                 example: 50000
  *
  *               donorName:

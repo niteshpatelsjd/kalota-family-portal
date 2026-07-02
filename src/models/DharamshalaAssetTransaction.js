@@ -54,8 +54,20 @@ const DharamshalaAssetTransactionSchema =
         default: 0,
       },
 
+      unitPrice: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
       amount: {
         type: Number,
+        default: 0,
+      },
+
+      totalAmount: {
+        type: Number,
+        min: 0,
         default: 0,
       },
 
@@ -67,6 +79,12 @@ const DharamshalaAssetTransactionSchema =
       quantityAfter: {
         type: Number,
         default: 0,
+      },
+
+      sourceType: {
+        type: String,
+        enum: ["DONATION", "PURCHASE", "MANUAL", "EXPENSE", "OTHER"],
+        default: "MANUAL",
       },
 
       donorName: {

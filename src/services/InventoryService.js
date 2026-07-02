@@ -1624,8 +1624,10 @@ exports.addAssetTransaction =
         transactionType,
         quantity,
         unit = "Piece",
+        unitPrice,
         rate = 0,
         amount,
+        sourceType = "MANUAL",
         donorName = "",
         donorMobile = "",
         supplierName = "",
@@ -1689,6 +1691,7 @@ exports.addAssetTransaction =
       }
 
       const qty = Number(quantity);
+      const finalUnitPrice = Number(unitPrice ?? rate ?? 0);
       const quantityBefore =
         Number(asset.availableQuantity || 0);
 
@@ -1749,7 +1752,7 @@ exports.addAssetTransaction =
       const finalAmount =
         amount !== undefined
           ? Number(amount || 0)
-          : Number(rate || 0) * qty;
+          : Number((finalUnitPrice * qty).toFixed(2));
 
       const transactionNumber =
         await generateAssetTransactionNumber();
@@ -1763,10 +1766,18 @@ exports.addAssetTransaction =
           transactionType,
           quantity: qty,
           unit,
-          rate: Number(rate || 0),
+          unitPrice: finalUnitPrice,
+          totalAmount: finalAmount,
+          rate: finalUnitPrice,
           amount: finalAmount,
           quantityBefore,
           quantityAfter,
+          sourceType:
+            donationId
+              ? "DONATION"
+              : expenseId
+                ? "EXPENSE"
+                : sourceType,
           donorName,
           donorMobile,
           supplierName,
@@ -1786,6 +1797,26 @@ exports.addAssetTransaction =
         (["PURCHASE", "OPENING"].includes(transactionType)
           ? finalAmount
           : 0);
+
+      if (["PURCHASE", "OPENING", "DONATION"].includes(transactionType)) {
+        asset.currentValue =
+          Number(asset.currentValue || 0) + finalAmount;
+      }
+
+      if (transactionType === "DONATION") {
+        asset.estimatedDonationValue =
+          Number(asset.estimatedDonationValue || 0) + finalAmount;
+      }
+
+      asset.averageUnitPrice =
+        Number(asset.totalQuantity || 0) > 0
+          ? Number(
+              (
+                Number(asset.currentValue || 0) /
+                Number(asset.totalQuantity)
+              ).toFixed(2)
+            )
+          : 0;
       asset.updatedBy = createdBy;
 
       await asset.save();
@@ -1873,6 +1904,12 @@ exports.getAssetTransactions =
       const transactions =
         await DharamshalaAssetTransaction.find(filter)
           .populate("assetId", "assetNumber assetName assetCategory unit")
+          .populate("itemId", "itemCode itemName itemNature category defaultUnit")
+          .populate("expenseId", "expenseNumber title amount")
+          .populate(
+            "donationId",
+            "receiptNumber itemName quantity estimatedUnitPrice estimatedTotalValue"
+          )
           .populate("createdBy", "name mobileNumber profileUrl")
           .sort({ createdAt: -1 })
           .skip(skip)
