@@ -786,19 +786,55 @@ async function verifyItemDonation(body) {
   try {
     const {
       donationId,
-      itemStatus,
+      itemStatus: requestedItemStatus,
       receivedQuantity = 0,
       notReceivedReason = "",
       remarks = "",
       updatedBy = null,
     } = body;
+    const itemStatus =
+      typeof requestedItemStatus === "string"
+        ? requestedItemStatus.trim().toUpperCase()
+        : requestedItemStatus;
+
+    logger.info("verifyItemDonation service started", {
+      donationId,
+      itemStatus,
+      receivedQuantity,
+      updatedBy,
+    });
+
+    const rejectVerification = (responseCode, message, context = {}) => {
+      logger.warn("verifyItemDonation validation failed", {
+        donationId,
+        itemStatus,
+        receivedQuantity,
+        message,
+        ...context,
+      });
+
+      return buildResponse(responseCode, message);
+    };
 
     if (!donationId) {
-      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "donationId is required");
+      return rejectVerification(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "donationId is required"
+      );
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(donationId)) {
+      return rejectVerification(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Invalid donationId"
+      );
     }
 
     if (!itemStatus) {
-      return buildResponse(DataConstant.CLIENT_ERROR.BAD_REQUEST, "itemStatus is required");
+      return rejectVerification(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "itemStatus is required"
+      );
     }
 
     const allowedStatuses = [
@@ -809,7 +845,7 @@ async function verifyItemDonation(body) {
     ];
 
     if (!allowedStatuses.includes(itemStatus)) {
-      return buildResponse(
+      return rejectVerification(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "Invalid itemStatus"
       );
@@ -818,11 +854,14 @@ async function verifyItemDonation(body) {
     const donation = await DharamshalaDonation.findById(donationId);
 
     if (!donation) {
-      return buildResponse(DataConstant.CLIENT_ERROR.NOT_FOUND, "Donation not found");
+      return rejectVerification(
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
+        "Donation not found"
+      );
     }
 
     if (donation.donationType !== "ITEM") {
-      return buildResponse(
+      return rejectVerification(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "Only item donation can be verified here"
       );
@@ -830,48 +869,67 @@ async function verifyItemDonation(body) {
 
     if (
       donation.itemStatus !== "PENDING_VERIFICATION" &&
-      donation.itemStatus !== "PENDING"
+      donation.itemStatus !== "PENDING" &&
+      donation.itemStatus !== "PARTIALLY_RECEIVED"
     ) {
-      return buildResponse(
+      return rejectVerification(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
-        `Item donation already ${donation.itemStatus}`
+        `Item donation already ${donation.itemStatus}`,
+        { currentItemStatus: donation.itemStatus }
       );
     }
 
+    const receivedQty = Number(receivedQuantity);
+    const previouslyReceivedQty = Number(
+      donation.receivedQuantity || 0
+    );
+    const donationQty = Number(donation.quantity || 0);
+    const remainingQty = donationQty - previouslyReceivedQty;
+
     if (itemStatus === "RECEIVED") {
-      if (!receivedQuantity || receivedQuantity <= 0) {
-        return buildResponse(
+      if (!Number.isFinite(receivedQty) || receivedQty <= 0) {
+        return rejectVerification(
           DataConstant.CLIENT_ERROR.BAD_REQUEST,
           "receivedQuantity is required"
         );
       }
 
-      if (receivedQuantity !== donation.quantity) {
-        return buildResponse(
+      if (receivedQty !== remainingQty) {
+        return rejectVerification(
           DataConstant.CLIENT_ERROR.BAD_REQUEST,
-          "For RECEIVED, receivedQuantity must match donation quantity"
+          "For RECEIVED, receivedQuantity must match remaining quantity",
+          {
+            donationQuantity: donationQty,
+            previouslyReceivedQuantity: previouslyReceivedQty,
+            remainingQuantity: remainingQty,
+          }
         );
       }
     }
 
     if (itemStatus === "PARTIALLY_RECEIVED") {
-      if (!receivedQuantity || receivedQuantity <= 0) {
-        return buildResponse(
+      if (!Number.isFinite(receivedQty) || receivedQty <= 0) {
+        return rejectVerification(
           DataConstant.CLIENT_ERROR.BAD_REQUEST,
           "receivedQuantity is required"
         );
       }
 
-      if (receivedQuantity >= donation.quantity) {
-        return buildResponse(
+      if (receivedQty >= remainingQty) {
+        return rejectVerification(
           DataConstant.CLIENT_ERROR.BAD_REQUEST,
-          "For PARTIALLY_RECEIVED, receivedQuantity must be less than donation quantity"
+          "For PARTIALLY_RECEIVED, receivedQuantity must be less than remaining quantity",
+          {
+            donationQuantity: donationQty,
+            previouslyReceivedQuantity: previouslyReceivedQty,
+            remainingQuantity: remainingQty,
+          }
         );
       }
     }
 
     if (itemStatus === "NOT_RECEIVED" && !notReceivedReason) {
-      return buildResponse(
+      return rejectVerification(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "notReceivedReason is required"
       );
@@ -881,7 +939,7 @@ async function verifyItemDonation(body) {
 
     donation.receivedQuantity =
       itemStatus === "RECEIVED" || itemStatus === "PARTIALLY_RECEIVED"
-        ? receivedQuantity
+        ? previouslyReceivedQty + receivedQty
         : 0;
 
     donation.notReceivedReason =
@@ -901,18 +959,40 @@ async function verifyItemDonation(body) {
     await donation.save();
 
     if (
-  donation.itemStatus === "RECEIVED" ||
-  donation.itemStatus === "PARTIALLY_RECEIVED"
-) {
-  await InventorySyncService.syncDonationItemToAssetOrInventory(donation._id);
-}
+      donation.itemStatus === "RECEIVED" ||
+      donation.itemStatus === "PARTIALLY_RECEIVED"
+    ) {
+      const syncResponse =
+        await InventorySyncService.syncDonationItemToAssetOrInventory(
+          donation._id,
+          receivedQty
+        );
+
+      logger.info("verifyItemDonation inventory sync completed", {
+        donationId: donation._id,
+        responseCode: syncResponse.responseCode,
+        message: syncResponse.message,
+      });
+    }
+
+    logger.info("verifyItemDonation service completed", {
+      donationId: donation._id,
+      itemStatus: donation.itemStatus,
+      receivedQuantity: donation.receivedQuantity,
+    });
+
     return buildResponse(
       DataConstant.SUCCESS.OK,
       "Item donation verified successfully",
       donation
     );
   } catch (error) {
-    logger.error(`verifyItemDonation error: ${error.message}`);
+    logger.error("verifyItemDonation service error", {
+      error: error.message,
+      stack: error.stack,
+      donationId: body?.donationId,
+      itemStatus: body?.itemStatus,
+    });
 
     return buildResponse(
       DataConstant.SERVER_ERROR.SERVER_ERROR,

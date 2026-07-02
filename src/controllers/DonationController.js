@@ -91,13 +91,28 @@ exports.depositCashDonation = async (req, res) => {
 };
 
 exports.verifyItemDonation = async (req, res)=> {
-  const response = await verifyItemDonation({
+  const request = {
     ...req.body,
     updatedBy:
       req.body.updatedBy ||
       req.user?._id ||
       req.user?.id ||
       null,
+  };
+
+  logger.info("verifyItemDonation request received", {
+    donationId: request.donationId,
+    itemStatus: request.itemStatus,
+    receivedQuantity: request.receivedQuantity,
+    updatedBy: request.updatedBy,
+  });
+
+  const response = await verifyItemDonation(request);
+
+  logger.info("verifyItemDonation response", {
+    donationId: request.donationId,
+    responseCode: response.responseCode,
+    message: response.message,
   });
 
   return res.status(response.responseCode).json(response);

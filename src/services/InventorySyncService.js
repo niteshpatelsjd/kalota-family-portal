@@ -213,7 +213,10 @@ const createStockTransaction = async ({
   return transaction;
 };
 
-exports.syncDonationItemToAssetOrInventory = async (donationId) => {
+exports.syncDonationItemToAssetOrInventory = async (
+  donationId,
+  receivedQuantity = null
+) => {
   try {
     if (!donationId) {
       return buildResponse(
@@ -254,25 +257,9 @@ exports.syncDonationItemToAssetOrInventory = async (donationId) => {
       );
     }
 
-    const alreadyAssetTxn = await DharamshalaAssetTransaction.findOne({
-      donationId,
-      statusFlag: 1,
-    }).lean();
-
-    const alreadyStockTxn = await DharamshalaInventoryTransaction.findOne({
-      donationId,
-      statusFlag: 1,
-    }).lean();
-
-    if (alreadyAssetTxn || alreadyStockTxn) {
-      return buildResponse(
-        DataConstant.CLIENT_ERROR.CONFLICT,
-        "Donation already synced",
-        alreadyAssetTxn || alreadyStockTxn
-      );
-    }
-
-    const quantity = Number(donation.receivedQuantity || donation.quantity || 1);
+    const quantity = Number(
+      receivedQuantity ?? donation.receivedQuantity ?? donation.quantity ?? 1
+    );
     const rate = Number(
       donation.estimatedUnitPrice || donation.price || 0
     );

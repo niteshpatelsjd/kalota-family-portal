@@ -425,6 +425,7 @@ router.post(
  *                 example: "PARTIALLY_RECEIVED"
  *               receivedQuantity:
  *                 type: number
+ *                 description: Quantity received in this verification. For a final RECEIVED call, send the remaining quantity.
  *                 example: 6
  *               notReceivedReason:
  *                 type: string
