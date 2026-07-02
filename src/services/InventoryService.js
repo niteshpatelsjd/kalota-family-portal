@@ -502,6 +502,90 @@ exports.addStockTransaction = async (data) => {
   }
 };
 
+exports.decreaseStock = async (data) => {
+  try {
+    const {
+      inventoryItemId: requestedInventoryItemId,
+      id,
+      quantity,
+      remarks = "",
+      referenceNumber = "",
+      updatedBy,
+      createdBy,
+    } = data;
+    const inventoryItemId = requestedInventoryItemId || id;
+
+    if (!inventoryItemId) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "inventoryItemId is required"
+      );
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(inventoryItemId)) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Invalid inventoryItemId"
+      );
+    }
+
+    if (
+      quantity === undefined ||
+      quantity === null ||
+      quantity === "" ||
+      !Number.isFinite(Number(quantity)) ||
+      Number(quantity) <= 0
+    ) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "quantity should be greater than zero"
+      );
+    }
+
+    const item = await DharamshalaInventoryItem.findOne({
+      _id: inventoryItemId,
+      statusFlag: 1,
+    }).lean();
+
+    if (!item) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
+        "Active inventory item not found"
+      );
+    }
+
+    const response = await exports.addStockTransaction({
+      dharamshalaId: item.dharamshalaId,
+      inventoryItemId,
+      transactionType: "ADJUSTMENT_OUT",
+      quantity: Number(quantity),
+      unit: item.unit || "Piece",
+      sourceType: "MANUAL",
+      referenceNumber,
+      remarks,
+      createdBy: updatedBy || createdBy || null,
+    });
+
+    if (response.responseCode === DataConstant.SUCCESS.OK) {
+      response.message = "Stock decreased successfully";
+    }
+
+    return response;
+  } catch (err) {
+    logger.error("decreaseStock service error", {
+      error: err.message,
+      stack: err.stack,
+      request: data,
+    });
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+};
+
 exports.getStockTransactions = async (data) => {
   try {
     const {

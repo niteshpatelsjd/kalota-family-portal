@@ -24,6 +24,19 @@ exports.addStockTransactionController = async (req, res) => {
   return res.status(result.responseCode).json(result);
 };
 
+exports.decreaseStockController = async (req, res) => {
+  const result = await inventoryService.decreaseStock({
+    ...req.body,
+    updatedBy:
+      req.body.updatedBy ||
+      req.user?._id ||
+      req.user?.id ||
+      null,
+  });
+
+  return res.status(result.responseCode).json(result);
+};
+
 exports.getStockTransactionsController = async (req, res) => {
   const result =
     await inventoryService.getStockTransactions(req.query);

@@ -795,6 +795,53 @@ router.post(
 
 /**
  * @openapi
+ * /admin/inventory/decreaseStock:
+ *   post:
+ *     tags: [Inventory Controller]
+ *     summary: Decrease inventory stock
+ *     description: Creates an ADJUSTMENT_OUT transaction and decreases current stock after validating availability.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - inventoryItemId
+ *               - quantity
+ *             properties:
+ *               inventoryItemId:
+ *                 type: string
+ *                 description: Dharamshala inventory item id.
+ *               quantity:
+ *                 type: number
+ *                 minimum: 0.000001
+ *               remarks:
+ *                 type: string
+ *               referenceNumber:
+ *                 type: string
+ *               updatedBy:
+ *                 type: string
+ *           example:
+ *             inventoryItemId: "INVENTORY_ITEM_ID"
+ *             quantity: 5
+ *             remarks: "Manual stock correction"
+ *             updatedBy: "ADMIN_USER_ID"
+ *     responses:
+ *       200:
+ *         description: Stock decreased successfully
+ *       400:
+ *         description: Validation error or insufficient stock
+ *       404:
+ *         description: Active inventory item not found
+ */
+router.post(
+  "/decreaseStock",
+  inventoryController.decreaseStockController
+);
+
+/**
+ * @openapi
  * /admin/inventory/getStockTransactions:
  *   get:
  *     tags: [Inventory Controller]
