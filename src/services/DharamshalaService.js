@@ -171,13 +171,18 @@ async function addDharamshala(data) {
       latitude,
       longitude,
 
-      profileImage: profileImage || data.profileImage || null,
-      bannerImage: bannerImage || data.bannerImage || null,
 
       status: data.status !== undefined ? Number(data.status) : 1,
       updatedAt: new Date(),
     };
 
+    if (profileImage) {
+  safeData.profileImage = profileImage;
+}
+
+if (bannerImage) {
+  safeData.bannerImage = bannerImage;
+}
     if (latitude !== null && longitude !== null) {
       safeData.location = {
         type: "Point",
