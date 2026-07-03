@@ -1,3 +1,6 @@
+
+const Village = require("../models/Village");
+
 const Dharamshala =
   require("../models/Dharamshala");
 
@@ -69,10 +72,6 @@ const DataConstant = {
 async function addDharamshala(data) {
   try {
     if (!data) {
-      logger.error(
-        "addDharamshala: no data provided"
-      );
-
       return buildResponse(
         DataConstant.BAD_REQUEST,
         DataConstant.INVALID_REQUEST,
@@ -80,80 +79,9 @@ async function addDharamshala(data) {
       );
     }
 
-    logger.info(
-      `addDharamshala called id=${
-        data.id || "NEW"
-      }`
-    );
+    logger.info(`addDharamshala called id=${data.id || "NEW"}`);
 
-    let profileImage = null;
-
-    let bannerImage = null;
-
-    /* ─────────────────────────────
-       PROFILE IMAGE
-    ───────────────────────────── */
-
-    if (data.profileImageFile) {
-      try {
-        if (data.profileImageFile) {
-  const uploaded =
-    await uploadToCloudinary(
-      data.profileImageFile.path,
-      "kalota/dharamshala"
-    );
-
-  profileImage =
-    uploaded.url;
-}
-
-        logger.info(
-          `Profile image uploaded ${profileImage}`
-        );
-      } catch (err) {
-        logger.error(
-          "Failed to upload profile image",
-          err
-        );
-      }
-    }
-
-    /* ─────────────────────────────
-       BANNER IMAGE
-    ───────────────────────────── */
-
-    if (data.bannerImageFile) {
-      try {
-        if (data.bannerImageFile) {
-  const uploaded =
-    await uploadToCloudinary(
-      data.bannerImageFile.path,
-      "kalota/dharamshala/banners"
-    );
-
-  bannerImage =
-    uploaded.url;
-}
-
-        logger.info(
-          `Banner image uploaded ${bannerImage}`
-        );
-      } catch (err) {
-        logger.error(
-          "Failed to upload banner image",
-          err
-        );
-      }
-    }
-
-    /* ─────────────────────────────
-       VALIDATION
-    ───────────────────────────── */
-
-    if (
-      !data.name ||
-      data.name.trim() === ""
-    ) {
+    if (!data.name || data.name.trim() === "") {
       return buildResponse(
         DataConstant.BAD_REQUEST,
         "Dharamshala name is required",
@@ -161,57 +89,120 @@ async function addDharamshala(data) {
       );
     }
 
+    let profileImage = null;
+    let bannerImage = null;
+
+    if (data.profileImageFile) {
+      try {
+        const uploaded = await uploadToCloudinary(
+          data.profileImageFile.path,
+          "kalota/dharamshala"
+        );
+
+        profileImage = uploaded.url;
+      } catch (err) {
+        logger.error("Failed to upload profile image", err);
+      }
+    }
+
+    if (data.bannerImageFile) {
+      try {
+        const uploaded = await uploadToCloudinary(
+          data.bannerImageFile.path,
+          "kalota/dharamshala/banners"
+        );
+
+        bannerImage = uploaded.url;
+      } catch (err) {
+        logger.error("Failed to upload banner image", err);
+      }
+    }
+
+    const latitude =
+      data.latitude !== undefined &&
+      data.latitude !== null &&
+      data.latitude !== ""
+        ? Number(data.latitude)
+        : null;
+
+    const longitude =
+      data.longitude !== undefined &&
+      data.longitude !== null &&
+      data.longitude !== ""
+        ? Number(data.longitude)
+        : null;
+
+    if (
+      latitude !== null &&
+      (Number.isNaN(latitude) || latitude < -90 || latitude > 90)
+    ) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Invalid latitude",
+        null
+      );
+    }
+
+    if (
+      longitude !== null &&
+      (Number.isNaN(longitude) || longitude < -180 || longitude > 180)
+    ) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Invalid longitude",
+        null
+      );
+    }
+
     const safeData = {
-      ...data,
+      name: data.name?.trim(),
+      description: data.description || "",
+      type: data.type || "DHARAMSHALA",
 
-      profileImage:
-        profileImage ||
-        data.profileImage,
+      villageId: data.villageId || null,
+      address: data.address || "",
 
-      bannerImage:
-        bannerImage ||
-        data.bannerImage,
+      mobileNumber: data.mobileNumber || "",
+      alternateMobileNumber: data.alternateMobileNumber || "",
+      email: data.email || "",
+      website: data.website || "",
+      establishedYear: data.establishedYear || "",
 
+      latitude,
+      longitude,
+
+      profileImage: profileImage || data.profileImage || null,
+      bannerImage: bannerImage || data.bannerImage || null,
+
+      status: data.status !== undefined ? Number(data.status) : 1,
       updatedAt: new Date(),
     };
 
+    if (latitude !== null && longitude !== null) {
+      safeData.location = {
+        type: "Point",
+        coordinates: [longitude, latitude],
+      };
+    }
+
     let dharamshala;
 
-    /* ─────────────────────────────
-       CREATE
-    ───────────────────────────── */
+    if (!data.id || data.id.trim() === "") {
+      dharamshala = await dharamshalaRepo.createDharamshala(safeData);
 
-    if (
-      !data.id ||
-      data.id.trim() === ""
-    ) {
-      dharamshala =
-        await dharamshalaRepo.createDharamshala(
-          safeData
-        );
-
-      logger.info(
-        `Dharamshala created ${dharamshala._id}`
-      );
+      logger.info(`Dharamshala created ${dharamshala._id}`);
 
       return buildResponse(
         DataConstant.OK,
         DataConstant.DHARAMSHALA_CREATED,
-        await buildDharamshalaResponse(
-          dharamshala
-        )
+        await buildDharamshalaResponse(dharamshala)
       );
     }
 
-    /* ─────────────────────────────
-       UPDATE
-    ───────────────────────────── */
-
-    dharamshala =
-      await dharamshalaRepo.updateDharamshala(
-        data.id,
-        safeData
-      );
+    dharamshala = await dharamshalaRepo.updateDharamshala(
+      data.id,
+      safeData
+    );
 
     if (!dharamshala) {
       return buildResponse(
@@ -221,24 +212,17 @@ async function addDharamshala(data) {
       );
     }
 
-    logger.info(
-      `Dharamshala updated ${data.id}`
-    );
+    logger.info(`Dharamshala updated ${data.id}`);
 
     return buildResponse(
       DataConstant.OK,
       DataConstant.DHARAMSHALA_UPDATED,
-      await buildDharamshalaResponse(
-        dharamshala
-      )
+      await buildDharamshalaResponse(dharamshala)
     );
   } catch (err) {
-    logger.error(
-      `addDharamshala error ${err.message}`,
-      {
-        stack: err.stack,
-      }
-    );
+    logger.error(`addDharamshala error ${err.message}`, {
+      stack: err.stack,
+    });
 
     return buildResponse(
       DataConstant.SERVER_ERROR,
@@ -293,6 +277,240 @@ async function getDharamshalaById(id) {
     logger.error(
       `getDharamshalaById error ${err.message}`
     );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+}
+
+
+
+
+async function getNearbyLocations(query) {
+  try {
+    const latitude = Number(query.latitude);
+    const longitude = Number(query.longitude);
+
+    const radiusInKm = query.radiusInKm
+      ? Number(query.radiusInKm)
+      : 25;
+
+    const type = query.type || "ALL"; 
+    // ALL | VILLAGE | DHARAMSHALA | TRUST
+
+    if (
+      Number.isNaN(latitude) ||
+      latitude < -90 ||
+      latitude > 90
+    ) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Valid latitude is required",
+        null
+      );
+    }
+
+    if (
+      Number.isNaN(longitude) ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Valid longitude is required",
+        null
+      );
+    }
+
+    if (
+      Number.isNaN(radiusInKm) ||
+      radiusInKm <= 0
+    ) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Valid radiusInKm is required",
+        null
+      );
+    }
+
+    const maxDistance = radiusInKm * 1000;
+
+    const response = {
+      villages: [],
+      dharamshalas: [],
+    };
+
+    if (type === "ALL" || type === "VILLAGE") {
+      response.villages = await Village.aggregate([
+        {
+          $geoNear: {
+            near: {
+              type: "Point",
+              coordinates: [longitude, latitude],
+            },
+            distanceField: "distanceInMeters",
+            maxDistance,
+            spherical: true,
+            query: {
+              status: DataConstant.SHORT_ONE,
+              "location.coordinates": { $exists: true },
+            },
+          },
+        },
+        {
+          $addFields: {
+            distanceInKm: {
+              $round: [
+                {
+                  $divide: ["$distanceInMeters", 1000],
+                },
+                2,
+              ],
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "districts",
+            localField: "districtId",
+            foreignField: "_id",
+            as: "district",
+          },
+        },
+        {
+          $lookup: {
+            from: "tehsils",
+            localField: "tehsilId",
+            foreignField: "_id",
+            as: "tehsil",
+          },
+        },
+        {
+          $unwind: {
+            path: "$district",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $unwind: {
+            path: "$tehsil",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            id: "$_id",
+            name: 1,
+            latitude: 1,
+            longitude: 1,
+            distanceInKm: 1,
+            districtId: 1,
+            tehsilId: 1,
+            districtName: "$district.name",
+            tehsilName: "$tehsil.name",
+          },
+        },
+        {
+          $sort: {
+            distanceInKm: 1,
+          },
+        },
+      ]);
+    }
+
+    if (
+      type === "ALL" ||
+      type === "DHARAMSHALA" ||
+      type === "TRUST"
+    ) {
+      const dharamshalaQuery = {
+        status: DataConstant.SHORT_ONE,
+        "location.coordinates": { $exists: true },
+      };
+
+      if (type === "DHARAMSHALA") {
+        dharamshalaQuery.type = "DHARAMSHALA";
+      }
+
+      if (type === "TRUST") {
+        dharamshalaQuery.type = "TRUST";
+      }
+
+      response.dharamshalas = await Dharamshala.aggregate([
+        {
+          $geoNear: {
+            near: {
+              type: "Point",
+              coordinates: [longitude, latitude],
+            },
+            distanceField: "distanceInMeters",
+            maxDistance,
+            spherical: true,
+            query: dharamshalaQuery,
+          },
+        },
+        {
+          $addFields: {
+            distanceInKm: {
+              $round: [
+                {
+                  $divide: ["$distanceInMeters", 1000],
+                },
+                2,
+              ],
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "villages",
+            localField: "villageId",
+            foreignField: "_id",
+            as: "village",
+          },
+        },
+        {
+          $unwind: {
+            path: "$village",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            id: "$_id",
+            name: 1,
+            type: 1,
+            address: 1,
+            mobileNumber: 1,
+            profileImage: 1,
+            bannerImage: 1,
+            latitude: 1,
+            longitude: 1,
+            distanceInKm: 1,
+            villageId: 1,
+            villageName: "$village.name",
+          },
+        },
+        {
+          $sort: {
+            distanceInKm: 1,
+          },
+        },
+      ]);
+    }
+
+    return buildResponse(
+      DataConstant.OK,
+      "Nearby locations fetched successfully",
+      response
+    );
+  } catch (err) {
+    logger.error(`getNearbyLocations error ${err.message}`, {
+      stack: err.stack,
+    });
 
     return buildResponse(
       DataConstant.SERVER_ERROR,
@@ -1097,4 +1315,5 @@ module.exports = {
   getAllDharamshala,
   blockUnblockDharamshala,
   getTotalDharamshalaCount,
+  getNearbyLocations,
 };

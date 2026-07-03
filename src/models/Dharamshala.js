@@ -8,7 +8,26 @@ const DharamshalaSchema =
         required: true,
         trim: true,
       },
+    type: {
+      type: String,
+      enum: ["DHARAMSHALA", "TRUST"],
+      default: "DHARAMSHALA",
+    },
 
+        latitude: Number,
+    longitude: Number,
+
+    location: {
+      type: {
+        type: String,
+        enum: ["Point"],
+        default: "Point",
+      },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+        default: [0, 0],
+      },
+    },
 
       description: String,
 
@@ -47,7 +66,7 @@ const DharamshalaSchema =
       timestamps: true,
     }
   );
-
+DharamshalaSchema.index({ location: "2dsphere" });
 module.exports = mongoose.model(
   "dharamshala",
   DharamshalaSchema

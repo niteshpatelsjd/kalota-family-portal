@@ -87,6 +87,26 @@ exports.getDharamshalaById =
     }
   };
 
+
+  exports.getNearbyLocations = async (req, res) => {
+  try {
+    const result =
+      await dharamshalaService.getNearbyLocations(
+        req.query
+      );
+
+    return res.status(200).json(result);
+  } catch (err) {
+    logger.error("getNearbyLocations controller error", {
+      error: err.message,
+      stack: err.stack,
+    });
+
+    return res.status(200).json(
+      buildResponse(500, err.message, null)
+    );
+  }
+};
 /* ─────────────────────────────────────
    GET ALL
 ───────────────────────────────────── */

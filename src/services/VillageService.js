@@ -49,47 +49,62 @@ async function addVillage(villageRequest) {
 
     // ================= VALIDATIONS =================
 
-    // districtId required
     if (!villageRequest.districtId) {
-      return buildResponse(
-        DataConstant.BAD_REQUEST,
-        "District Id is required"
-      );
+      return buildResponse(DataConstant.BAD_REQUEST, "District Id is required");
     }
 
-    // tehsilId required
     if (!villageRequest.tehsilId) {
-      return buildResponse(
-        DataConstant.BAD_REQUEST,
-        "Tehsil Id is required"
-      );
+      return buildResponse(DataConstant.BAD_REQUEST, "Tehsil Id is required");
     }
 
-    // village name required
     if (!villageName) {
-      return buildResponse(
-        DataConstant.BAD_REQUEST,
-        "Village name is required"
-      );
+      return buildResponse(DataConstant.BAD_REQUEST, "Village name is required");
     }
 
-    // Validate district ObjectId
     if (!mongoose.Types.ObjectId.isValid(villageRequest.districtId)) {
-      return buildResponse(
-        DataConstant.BAD_REQUEST,
-        "Invalid District Id"
-      );
+      return buildResponse(DataConstant.BAD_REQUEST, "Invalid District Id");
     }
 
-    // Validate tehsil ObjectId
     if (!mongoose.Types.ObjectId.isValid(villageRequest.tehsilId)) {
-      return buildResponse(
-        DataConstant.BAD_REQUEST,
-        "Invalid Tehsil Id"
-      );
+      return buildResponse(DataConstant.BAD_REQUEST, "Invalid Tehsil Id");
     }
 
-    // Validate District
+    const latitude =
+      villageRequest.latitude !== undefined &&
+      villageRequest.latitude !== null &&
+      villageRequest.latitude !== ""
+        ? Number(villageRequest.latitude)
+        : null;
+
+    const longitude =
+      villageRequest.longitude !== undefined &&
+      villageRequest.longitude !== null &&
+      villageRequest.longitude !== ""
+        ? Number(villageRequest.longitude)
+        : null;
+
+    if (
+      latitude !== null &&
+      (Number.isNaN(latitude) || latitude < -90 || latitude > 90)
+    ) {
+      return buildResponse(DataConstant.BAD_REQUEST, "Invalid latitude");
+    }
+
+    if (
+      longitude !== null &&
+      (Number.isNaN(longitude) || longitude < -180 || longitude > 180)
+    ) {
+      return buildResponse(DataConstant.BAD_REQUEST, "Invalid longitude");
+    }
+
+    const location =
+      latitude !== null && longitude !== null
+        ? {
+            type: "Point",
+            coordinates: [longitude, latitude],
+          }
+        : undefined;
+
     const district = await District.findOne({
       _id: villageRequest.districtId,
       status: {
@@ -104,7 +119,6 @@ async function addVillage(villageRequest) {
       );
     }
 
-    // Validate Tehsil
     const tehsil = await Tehsil.findOne({
       _id: villageRequest.tehsilId,
       districtId: villageRequest.districtId,
@@ -121,14 +135,12 @@ async function addVillage(villageRequest) {
     }
 
     // ================= UPDATE =================
+
     if (villageRequest.id) {
       logger.info("Updating village with id: %s", villageRequest.id);
 
       if (!mongoose.Types.ObjectId.isValid(villageRequest.id)) {
-        return buildResponse(
-          DataConstant.BAD_REQUEST,
-          "Invalid Village Id"
-        );
+        return buildResponse(DataConstant.BAD_REQUEST, "Invalid Village Id");
       }
 
       village = await Village.findById(villageRequest.id);
@@ -140,7 +152,6 @@ async function addVillage(villageRequest) {
         );
       }
 
-      // Duplicate validation
       const existingVillage = await Village.findOne({
         _id: { $ne: villageRequest.id },
         districtId: villageRequest.districtId,
@@ -152,17 +163,21 @@ async function addVillage(villageRequest) {
       });
 
       if (existingVillage) {
-        return buildResponse(
-          DataConstant.BAD_REQUEST,
-          "Village already exists"
-        );
+        return buildResponse(DataConstant.BAD_REQUEST, "Village already exists");
       }
 
       village.districtId = villageRequest.districtId;
       village.tehsilId = villageRequest.tehsilId;
       village.name = villageName;
-      village.latitude = villageRequest.latitude ?? null;
-      village.longitude = villageRequest.longitude ?? null;
+      village.latitude = latitude;
+      village.longitude = longitude;
+
+      if (location) {
+        village.location = location;
+      } else {
+        village.location = undefined;
+      }
+
       village.updatedAt = new Date();
 
       await village.save();
@@ -175,6 +190,7 @@ async function addVillage(villageRequest) {
     }
 
     // ================= CREATE =================
+
     logger.info("Creating village: %s", villageName);
 
     const existingVillage = await Village.findOne({
@@ -187,22 +203,25 @@ async function addVillage(villageRequest) {
     });
 
     if (existingVillage) {
-      return buildResponse(
-        DataConstant.BAD_REQUEST,
-        "Village already exists"
-      );
+      return buildResponse(DataConstant.BAD_REQUEST, "Village already exists");
     }
 
-    village = await Village.create({
+    const createPayload = {
       districtId: villageRequest.districtId,
       tehsilId: villageRequest.tehsilId,
       name: villageName,
-      latitude: villageRequest.latitude ?? null,
-      longitude: villageRequest.longitude ?? null,
+      latitude,
+      longitude,
       status: DataConstant.SHORT_ONE,
       createdAt: new Date(),
       updatedAt: new Date(),
-    });
+    };
+
+    if (location) {
+      createPayload.location = location;
+    }
+
+    village = await Village.create(createPayload);
 
     return buildResponse(
       DataConstant.OK,

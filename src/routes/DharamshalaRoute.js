@@ -78,13 +78,12 @@ function auth(req, res, next) {
 /* ─────────────────────────────────────
    ADD / UPDATE DHARAMSHALA
 ───────────────────────────────────── */
-
 /**
  * @openapi
  * /admin/dharamshala/addDharamshala:
  *   post:
  *     tags: [Dharamshala Controller]
- *     summary: Create or update Dharamshala
+ *     summary: Create or update Dharamshala / Trust
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -99,7 +98,11 @@ function auth(req, res, next) {
  *                 example: "6851a6bc1f1f4e0e88aa1001"
  *               name:
  *                 type: string
- *                 example: "Shree Patel Dharamshala"
+ *                 example: "Shree Kalota Dharamshala"
+ *               type:
+ *                 type: string
+ *                 enum: [DHARAMSHALA, TRUST]
+ *                 example: "DHARAMSHALA"
  *               description:
  *                 type: string
  *                 example: "Main community dharamshala"
@@ -108,7 +111,13 @@ function auth(req, res, next) {
  *                 example: "6851a6bc1f1f4e0e88aa2001"
  *               address:
  *                 type: string
- *                 example: "Near Bus Stand"
+ *                 example: "Near Bus Stand, Dewas"
+ *               latitude:
+ *                 type: number
+ *                 example: 22.9676
+ *               longitude:
+ *                 type: number
+ *                 example: 76.0534
  *               mobileNumber:
  *                 type: string
  *                 example: "9876543210"
@@ -124,6 +133,9 @@ function auth(req, res, next) {
  *               establishedYear:
  *                 type: string
  *                 example: "2001"
+ *               status:
+ *                 type: number
+ *                 example: 1
  *               profileImageFile:
  *                 type: string
  *                 format: binary
@@ -132,7 +144,7 @@ function auth(req, res, next) {
  *                 format: binary
  *     responses:
  *       200:
- *         description: Dharamshala created/updated successfully
+ *         description: Dharamshala / Trust created or updated successfully
  *       400:
  *         description: Invalid request
  *       401:
@@ -141,21 +153,16 @@ function auth(req, res, next) {
 
 router.post(
   "/addDharamshala",
-
-
-
   upload.fields([
     {
       name: "profileImageFile",
       maxCount: 1,
     },
-
     {
       name: "bannerImageFile",
       maxCount: 1,
     },
   ]),
-
   ctrl.addDharamshala
 );
 
@@ -195,6 +202,60 @@ router.get(
   ctrl.getDharamshalaById
 );
 
+
+/**
+ * @openapi
+ * /admin/dharamshala/nearby:
+ *   get:
+ *     tags: [Dharamshala Controller]
+ *     summary: Get nearby villages and dharamshalas/trusts by latitude and longitude
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: latitude
+ *         required: true
+ *         schema:
+ *           type: number
+ *         example: 22.7196
+ *         description: Current user latitude
+ *       - in: query
+ *         name: longitude
+ *         required: true
+ *         schema:
+ *           type: number
+ *         example: 75.8577
+ *         description: Current user longitude
+ *       - in: query
+ *         name: radiusInKm
+ *         required: false
+ *         schema:
+ *           type: number
+ *           default: 25
+ *         example: 25
+ *         description: Search radius in kilometers
+ *       - in: query
+ *         name: type
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [ALL, VILLAGE, DHARAMSHALA, TRUST]
+ *           default: ALL
+ *         example: ALL
+ *         description: Filter nearby result type
+ *     responses:
+ *       200:
+ *         description: Nearby locations fetched successfully
+ *       400:
+ *         description: Invalid latitude or longitude
+ *       401:
+ *         description: Unauthorized
+ */
+
+router.get(
+  "/nearby",
+  ctrl.getNearbyLocations
+);
 /* ─────────────────────────────────────
    GET ALL
 ───────────────────────────────────── */
