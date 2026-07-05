@@ -310,13 +310,39 @@ router.get(
  *       401:
  *         description: Unauthorized
  */
-
 router.get(
   "/getAllDharamshala",
-
-
-
   ctrl.getAllDharamshala
+);
+
+
+/**
+ * @openapi
+ * /admin/dharamshala/getDharamshalaAndTrustByVillage:
+ *   get:
+ *     tags: [Dharamshala Controller]
+ *     summary: Get village Dharamshala along with all Trusts
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: villageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: "6a2696f61ca30c297d0fabf3"
+ *         description: Village ID
+ *     responses:
+ *       200:
+ *         description: Records fetched successfully
+ *       400:
+ *         description: villageId is required
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/getDharamshalaAndTrustByVillage",
+  ctrl.getDharamshalaAndTrustByVillage
 );
 
 /* ─────────────────────────────────────

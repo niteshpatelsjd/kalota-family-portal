@@ -111,7 +111,7 @@ async function buildDharamshalaResponse(
     id: data._id,
     name: data.name || null,
     description: data.description || null,
-
+    type: data.type || null,
     villageId:
       data.villageId?._id || null,
 

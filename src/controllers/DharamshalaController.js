@@ -88,7 +88,7 @@ exports.getDharamshalaById =
   };
 
 
-  exports.getNearbyLocations = async (req, res) => {
+exports.getNearbyLocations = async (req, res) => {
   try {
     const result =
       await dharamshalaService.getNearbyLocations(
@@ -186,6 +186,14 @@ exports.getAllDharamshala =
     }
   };
 
+exports.getDharamshalaAndTrustByVillage = 
+async(req, res) => {
+  const response = await dharamshalaService.getDharamshalaAndTrustByVillage({
+    villageId: req.query.villageId,
+  });
+
+  return res.status(response.responseCode).json(response);
+};
 /* ─────────────────────────────────────
    BLOCK / UNBLOCK
 ───────────────────────────────────── */

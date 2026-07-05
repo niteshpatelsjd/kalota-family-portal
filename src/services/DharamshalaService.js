@@ -703,6 +703,105 @@ async function getAllDharamshala({
   }
 }
 
+async function getDharamshalaAndTrustByVillage({ villageId }) {
+  try {
+    logger.info("getDharamshalaAndTrustByVillage called", {
+      villageId,
+    });
+
+    if (!villageId || villageId.trim() === "") {
+      logger.warn(
+        "getDharamshalaAndTrustByVillage: villageId is missing"
+      );
+
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "villageId is required",
+        null
+      );
+    }
+
+    logger.info("Fetching village dharamshalas", {
+      villageId,
+    });
+
+    const villageDharamshalas = await dharamshalaRepo.findAll(
+      {
+        villageId,
+        type: "DHARAMSHALA",
+        status: DataConstant.SHORT_ONE,
+      },
+      0,
+      100
+    );
+
+    logger.info("Village dharamshalas fetched", {
+      count: villageDharamshalas.length,
+    });
+
+    logger.info("Fetching trust dharamshalas");
+
+    const trusts = await dharamshalaRepo.findAll(
+      {
+        type: "TRUST",
+        status: DataConstant.SHORT_ONE,
+      },
+      0,
+      100
+    );
+
+    logger.info("Trusts fetched", {
+      count: trusts.length,
+    });
+
+    const content = [
+      ...villageDharamshalas,
+      ...trusts,
+    ];
+
+    logger.info("Preparing response", {
+      totalRecords: content.length,
+    });
+
+    const responseContent = await Promise.all(
+      content.map(buildDharamshalaResponse)
+    );
+
+    logger.info(
+      "getDharamshalaAndTrustByVillage completed successfully",
+      {
+        villageDharamshalaCount:
+          villageDharamshalas.length,
+        trustCount: trusts.length,
+        totalRecords: responseContent.length,
+      }
+    );
+
+    return buildResponse(
+      DataConstant.OK,
+      "Records fetched successfully",
+      {
+        content: responseContent,
+        totalRecords: responseContent.length,
+      }
+    );
+  } catch (err) {
+    logger.error(
+      `getDharamshalaAndTrustByVillage error: ${err.message}`,
+      {
+        villageId,
+        stack: err.stack,
+      }
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      err.message,
+      null
+    );
+  }
+}
+
 /* ─────────────────────────────────────
    BLOCK / UNBLOCK / DELETE
 ───────────────────────────────────── */
@@ -1321,4 +1420,5 @@ module.exports = {
   blockUnblockDharamshala,
   getTotalDharamshalaCount,
   getNearbyLocations,
+  getDharamshalaAndTrustByVillage,
 };
