@@ -95,6 +95,278 @@ userResponse: user
   };
 }
 
+
+
+
+async function getViewersService({
+  postId,
+  pageIndex = 0,
+  pageSize = 20,
+}) {
+  try {
+    logger.info("Starting getViewersService", {
+      postId,
+      pageIndex,
+      pageSize,
+    });
+
+    if (!postId) {
+      logger.warn("getViewersService: postId is missing");
+
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "postId is required",
+        null
+      );
+    }
+
+    const skip = pageIndex * pageSize;
+
+    logger.info("Fetching post viewers", {
+      postId,
+      skip,
+      pageSize,
+    });
+
+    const query = {
+      postId,
+      userId: { $ne: null },
+    };
+
+    const [viewers, totalRecords] =
+      await Promise.all([
+        PostView.find(query)
+          .populate({
+            path: "userId",
+            select:
+              "name firstName lastName profileUrl",
+          })
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(pageSize)
+          .lean(),
+
+        PostView.countDocuments(query),
+      ]);
+
+    logger.info("Post viewers fetched", {
+      viewerCount: viewers.length,
+      totalRecords,
+    });
+
+    logger.info("Building viewers response");
+
+    const content = viewers.map((item) => ({
+      id: item._id,
+      viewedAt: item.createdAt,
+      user: item.userId
+        ? {
+            id: item.userId._id,
+            name:
+              item.userId.name ||
+              [
+                item.userId.firstName,
+                item.userId.lastName,
+              ]
+                .filter(Boolean)
+                .join(" "),
+            firstName: item.userId.firstName,
+            lastName: item.userId.lastName,
+            profileUrl:
+              item.userId.profileUrl ||
+              item.userId.profileImage,
+          }
+        : null,
+    }));
+
+    logger.info(
+      "getViewersService completed successfully",
+      {
+        responseCount: content.length,
+        totalRecords,
+        pageIndex,
+        pageSize,
+      }
+    );
+
+    return buildResponse(
+      DataConstant.SUCCESS.OK,
+      "Viewers fetched successfully",
+      {
+        content,
+        pageIndex,
+        pageSize,
+        totalRecords,
+        totalPages: Math.ceil(
+          totalRecords / pageSize
+        ),
+        isLast:
+          pageIndex + 1 >=
+          Math.ceil(
+            totalRecords / pageSize
+          ),
+        hasNext:
+          pageIndex + 1 <
+          Math.ceil(
+            totalRecords / pageSize
+          ),
+        hasPrevious: pageIndex > 0,
+      }
+    );
+  } catch (error) {
+    logger.error(
+      "Error in getViewersService",
+      {
+        postId,
+        pageIndex,
+        pageSize,
+        message: error.message,
+        stack: error.stack,
+      }
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
+      DataConstant.SERVER_MESSAGE,
+      null
+    );
+  }
+}
+
+async function getLikersService({
+  postId,
+  pageIndex = 0,
+  pageSize = 20,
+}) {
+  try {
+    logger.info("Starting getLikersService", {
+      postId,
+      pageIndex,
+      pageSize,
+    });
+
+    if (!postId) {
+      logger.warn("getLikersService: postId is missing");
+
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "postId is required",
+        null
+      );
+    }
+
+    const skip = pageIndex * pageSize;
+
+    logger.info("Fetching post likers", {
+      postId,
+      skip,
+      pageSize,
+    });
+
+    const query = {
+      postId,
+      status: 1,
+    };
+
+    const [likers, totalRecords] =
+      await Promise.all([
+        PostLike.find(query)
+          .populate({
+            path: "userId",
+            select:
+              "name firstName lastName profileUrl",
+          })
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(pageSize)
+          .lean(),
+
+        PostLike.countDocuments(query),
+      ]);
+
+    logger.info("Post likers fetched", {
+      likerCount: likers.length,
+      totalRecords,
+    });
+
+    logger.info("Building likers response");
+
+    const content = likers.map((item) => ({
+      id: item._id,
+      likedAt: item.createdAt,
+      user: item.userId
+        ? {
+            id: item.userId._id,
+            name:
+              item.userId.name ||
+              [
+                item.userId.firstName,
+                item.userId.lastName,
+              ]
+                .filter(Boolean)
+                .join(" "),
+            firstName: item.userId.firstName,
+            lastName: item.userId.lastName,
+            profileUrl:
+              item.userId.profileUrl ||
+              item.userId.profileImage,
+          }
+        : null,
+    }));
+
+    logger.info(
+      "getLikersService completed successfully",
+      {
+        responseCount: content.length,
+        totalRecords,
+        pageIndex,
+        pageSize,
+      }
+    );
+
+    return buildResponse(
+      DataConstant.SUCCESS.OK,
+      "Likers fetched successfully",
+      {
+        content,
+        pageIndex,
+        pageSize,
+        totalRecords,
+        totalPages: Math.ceil(
+          totalRecords / pageSize
+        ),
+        isLast:
+          pageIndex + 1 >=
+          Math.ceil(
+            totalRecords / pageSize
+          ),
+        hasNext:
+          pageIndex + 1 <
+          Math.ceil(
+            totalRecords / pageSize
+          ),
+        hasPrevious: pageIndex > 0,
+      }
+    );
+  } catch (error) {
+    logger.error(
+      "Error in getLikersService",
+      {
+        postId,
+        pageIndex,
+        pageSize,
+        message: error.message,
+        stack: error.stack,
+      }
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
+      DataConstant.SERVER_MESSAGE,
+      null
+    );
+  }
+}
 /* ───────────────── CREATE POST ───────────────── */
 
 async function createPostService(body, files, loggedInUserId) {
@@ -910,4 +1182,6 @@ module.exports = {
   sharePostService,
   editPostService,
   deletePostService,
+  getLikersService,
+  getViewersService,
 };

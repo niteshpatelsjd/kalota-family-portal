@@ -8,6 +8,8 @@ const {
   getCommentsService,
   viewPostService,
   sharePostService,
+  getLikersService,
+  getViewersService,
 } = require("../services/PostService");
 
 async function createPost(req, res) {
@@ -67,6 +69,44 @@ async function getFeed(req, res) {
   );
 
   return res.status(200).json(response);
+}
+
+async function getViewers(req, res) {
+  try {
+    const { postId, pageIndex = 0, pageSize = 20 } = req.query;
+
+    const response = await getViewersService({
+      postId,
+      pageIndex: Number(pageIndex),
+      pageSize: Number(pageSize),
+    });
+
+    return res.status(200).json(response);
+  } catch (err) {
+    return res.status(500).json({
+      responseCode: 500,
+      message: err.message,
+    });
+  }
+}
+
+async function getLikers(req, res) {
+  try {
+    const { postId, pageIndex = 0, pageSize = 20 } = req.query;
+
+    const response = await getLikersService({
+      postId,
+      pageIndex: Number(pageIndex),
+      pageSize: Number(pageSize),
+    });
+
+    return res.status(200).json(response);
+  } catch (err) {
+    return res.status(500).json({
+      responseCode: 500,
+      message: err.message,
+    });
+  }
 }
 
 async function likeUnlikePost(req, res) {
@@ -139,6 +179,8 @@ module.exports = {
   addComment,
   getComments,
   viewPost,
+  getLikers,
+  getViewers,
   sharePost,
   editPost,
   deletePost,

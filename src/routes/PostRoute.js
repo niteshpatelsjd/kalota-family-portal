@@ -31,6 +31,8 @@ const upload = multer({ storage });
 const {
   createPost,
   getFeed,
+  getLikers,
+  getViewers,
   likeUnlikePost,
   addComment,
   getComments,
@@ -153,6 +155,64 @@ router.put(
   upload.array("media", 10),
   editPost
 );
+
+
+
+/**
+ * @openapi
+ * /admin/post/getViewers:
+ *   get:
+ *     tags: [Post]
+ *     summary: Get post viewers
+ *     parameters:
+ *       - in: query
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: pageIndex
+ *         schema:
+ *           type: number
+ *           example: 0
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: number
+ *           example: 20
+ *     responses:
+ *       200:
+ *         description: Viewers fetched successfully
+ */
+router.get("/getViewers", getViewers);
+
+/**
+ * @openapi
+ * /admin/post/getLikers:
+ *   get:
+ *     tags: [Post]
+ *     summary: Get post likers
+ *     parameters:
+ *       - in: query
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: pageIndex
+ *         schema:
+ *           type: number
+ *           example: 0
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: number
+ *           example: 20
+ *     responses:
+ *       200:
+ *         description: Likers fetched successfully
+ */
+router.get("/getLikers", getLikers);
 
 
 /**
