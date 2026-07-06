@@ -3,7 +3,7 @@ const Post = require("../models/Post");
 const PostLike = require("../models/PostLike");
 const PostComment = require("../models/PostComment");
 const PostView = require("../models/PostView");
-
+const User = require("../models/User");
 const buildResponse = require("../utils/response");
 const DataConstant = require("../constants/DataConstant");
 const logger = require("../utils/logger");
@@ -13,7 +13,6 @@ const uploadToCloudinary =
     "../utils/CloudnaryUploadUtil"
   );
 
-const User = require("../models/User");
 
 const {
   sendNotificationToUserService,
@@ -643,33 +642,142 @@ async function deletePostService(body, loggedInUserId) {
 
 /* ───────────────── GET FEED ───────────────── */
 
+// async function getFeedService(query) {
+//   try {
+//     const limit = Number(query.limit) || 10;
+
+//     const filter = {
+//       status: 1,
+//     };
+
+//     // viewer userId only for isLiked check
+//     const loggedInUserId = query.userId || null;
+
+//     // targetUserId only for profile feed filter
+//     const targetUserId = query.targetUserId || null;
+
+//     if (targetUserId) {
+//       filter.userId = targetUserId;
+//     }
+
+//     if (query.dharamshalaId) {
+//       filter.dharamshalaId = query.dharamshalaId;
+//     }
+
+//     if (query.cursor) {
+//       filter.createdAt = {
+//         $lt: new Date(query.cursor),
+//       };
+//     }
+
+//     const posts = await Post.find(filter)
+//       .sort({ createdAt: -1 })
+//       .limit(limit + 1)
+//       .populate({
+//         path: "userId",
+//         select: "name profileUrl districtId villageId",
+//         populate: [
+//           {
+//             path: "districtId",
+//             select: "name",
+//           },
+//           {
+//             path: "villageId",
+//             select: "name",
+//           },
+//         ],
+//       })
+//       .populate({
+//         path: "dharamshalaId",
+//         select: "name bannerImage address type",
+//       })
+//       .lean();
+
+//     const hasNextPage = posts.length > limit;
+
+//     const finalPosts = hasNextPage
+//       ? posts.slice(0, limit)
+//       : posts;
+
+//     const postIds = finalPosts.map((p) => p._id);
+
+//     // Fetch latest viewers for all posts
+//     const latestViews = await PostView.find({
+//       postId: { $in: postIds },
+//       status: 1,
+//     })
+//       .sort({ createdAt: -1 })
+//       .populate({
+//         path: "userId",
+//         select: "name profileUrl",
+//       })
+//       .lean();
+
+//     let likedPostIds = [];
+
+//     if (loggedInUserId && postIds.length > 0) {
+//       const likes = await PostLike.find({
+//         postId: { $in: postIds },
+//         userId: loggedInUserId,
+//         status: 1,
+//       }).select("postId");
+
+//       likedPostIds = likes.map((l) =>
+//         l.postId.toString()
+//       );
+//     }
+
+//     const content = finalPosts.map((post) => {
+//       post.isLiked = likedPostIds.includes(
+//         post._id.toString()
+//       );
+
+//       return mapPostResponse(post, loggedInUserId);
+//     });
+
+//     const nextCursor =
+//       finalPosts.length > 0
+//         ? finalPosts[finalPosts.length - 1].createdAt
+//         : null;
+
+//     return buildResponse(
+//       DataConstant.SUCCESS.OK,
+//       "Posts fetched successfully",
+//       {
+//         content,
+//         nextCursor,
+//         hasNextPage,
+//       }
+//     );
+//   } catch (error) {
+//     logger.error("getFeedService error", error);
+
+//     return buildResponse(
+//       DataConstant.SERVER_ERROR.SERVER_ERROR,
+//       "Something went wrong"
+//     );
+//   }
+// }
 async function getFeedService(query) {
   try {
+    logger.info("getFeedService started");
+    logger.info(`getFeedService query: ${JSON.stringify(query)}`);
+
     const limit = Number(query.limit) || 10;
 
-    const filter = {
-      status: 1,
-    };
+    const filter = { status: 1 };
 
-    // viewer userId only for isLiked check
     const loggedInUserId = query.userId || null;
-
-    // targetUserId only for profile feed filter
     const targetUserId = query.targetUserId || null;
 
-    if (targetUserId) {
-      filter.userId = targetUserId;
-    }
-
-    if (query.dharamshalaId) {
-      filter.dharamshalaId = query.dharamshalaId;
-    }
+    if (targetUserId) filter.userId = targetUserId;
+    if (query.dharamshalaId) filter.dharamshalaId = query.dharamshalaId;
 
     if (query.cursor) {
-      filter.createdAt = {
-        $lt: new Date(query.cursor),
-      };
+      filter.createdAt = { $lt: new Date(query.cursor) };
     }
+
+    logger.info(`post filter: ${JSON.stringify(filter)}`);
 
     const posts = await Post.find(filter)
       .sort({ createdAt: -1 })
@@ -678,14 +786,8 @@ async function getFeedService(query) {
         path: "userId",
         select: "name profileUrl districtId villageId",
         populate: [
-          {
-            path: "districtId",
-            select: "name",
-          },
-          {
-            path: "villageId",
-            select: "name",
-          },
+          { path: "districtId", select: "name" },
+          { path: "villageId", select: "name" },
         ],
       })
       .populate({
@@ -695,12 +797,95 @@ async function getFeedService(query) {
       .lean();
 
     const hasNextPage = posts.length > limit;
-
-    const finalPosts = hasNextPage
-      ? posts.slice(0, limit)
-      : posts;
-
+    const finalPosts = hasNextPage ? posts.slice(0, limit) : posts;
     const postIds = finalPosts.map((p) => p._id);
+
+    logger.info(`finalPosts count: ${finalPosts.length}`);
+    logger.info(`postIds: ${postIds.map((id) => id.toString()).join(", ")}`);
+
+    let latestViewersMap = {};
+
+    if (postIds.length > 0) {
+      logger.info("Fetching latest viewers started");
+
+      const latestViews = await PostView.aggregate([
+        {
+          $match: {
+            postId: { $in: postIds },
+            userId: { $ne: null },
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        {
+          $group: {
+            _id: "$postId",
+            viewers: { $push: "$$ROOT" },
+          },
+        },
+        {
+          $project: {
+            viewers: { $slice: ["$viewers", 3] },
+          },
+        },
+      ]);
+
+      logger.info(`latestViews aggregate count: ${latestViews.length}`);
+      logger.info(`latestViews raw: ${JSON.stringify(latestViews)}`);
+
+      const viewerUserIds = [
+        ...new Set(
+          latestViews
+            .flatMap((item) => item.viewers || [])
+            .map((view) => view.userId?.toString())
+            .filter(Boolean)
+        ),
+      ];
+
+      logger.info(`viewerUserIds: ${JSON.stringify(viewerUserIds)}`);
+
+      const users = await User.find({
+        _id: { $in: viewerUserIds },
+      })
+        .select("_id name profileUrl")
+        .lean();
+
+      logger.info(`viewer users found count: ${users.length}`);
+      logger.info(`viewer users found: ${JSON.stringify(users)}`);
+
+      const usersMap = users.reduce((result, user) => {
+        result[user._id.toString()] = user;
+        return result;
+      }, {});
+
+      latestViewersMap = latestViews.reduce((result, item) => {
+        const postId = item._id.toString();
+
+        result[postId] = (item.viewers || [])
+          .map((view) => {
+            const user = usersMap[view.userId?.toString()];
+
+            if (!user) {
+              logger.warn(
+                `Viewer user not found. postId: ${postId}, userId: ${view.userId}`
+              );
+              return null;
+            }
+
+            return {
+              id: user._id,
+              name: user.name,
+              profileUrl: user.profileUrl,
+            };
+          })
+          .filter(Boolean);
+
+        logger.info(
+          `latest viewers for post ${postId}: ${JSON.stringify(result[postId])}`
+        );
+
+        return result;
+      }, {});
+    }
 
     let likedPostIds = [];
 
@@ -711,23 +896,29 @@ async function getFeedService(query) {
         status: 1,
       }).select("postId");
 
-      likedPostIds = likes.map((l) =>
-        l.postId.toString()
-      );
+      likedPostIds = likes.map((l) => l.postId.toString());
+
+      logger.info(`likedPostIds: ${JSON.stringify(likedPostIds)}`);
     }
 
     const content = finalPosts.map((post) => {
-      post.isLiked = likedPostIds.includes(
-        post._id.toString()
+      const postId = post._id.toString();
+
+      post.isLiked = likedPostIds.includes(postId);
+
+      const response = mapPostResponse(post, loggedInUserId);
+
+      response.latestViewers = latestViewersMap[postId] || [];
+
+      logger.info(
+        `final response postId: ${postId}, latestViewers count: ${response.latestViewers.length}`
       );
 
-      return mapPostResponse(post, loggedInUserId);
+      return response;
     });
 
     const nextCursor =
-      finalPosts.length > 0
-        ? finalPosts[finalPosts.length - 1].createdAt
-        : null;
+      finalPosts.length > 0 ? finalPosts[finalPosts.length - 1].createdAt : null;
 
     return buildResponse(
       DataConstant.SUCCESS.OK,
@@ -739,7 +930,8 @@ async function getFeedService(query) {
       }
     );
   } catch (error) {
-    logger.error("getFeedService error", error);
+    logger.error(`getFeedService error: ${error.message}`);
+    logger.error(error.stack);
 
     return buildResponse(
       DataConstant.SERVER_ERROR.SERVER_ERROR,
