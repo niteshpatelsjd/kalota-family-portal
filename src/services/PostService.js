@@ -4,6 +4,7 @@ const PostLike = require("../models/PostLike");
 const PostComment = require("../models/PostComment");
 const PostView = require("../models/PostView");
 const User = require("../models/User");
+const UserFollow = require("../models/UserFollow");
 const buildResponse = require("../utils/response");
 const DataConstant = require("../constants/DataConstant");
 const logger = require("../utils/logger");
@@ -17,6 +18,7 @@ const uploadToCloudinary =
 const {
   sendNotificationToUserService,
 } = require("./NotificationService");
+const visibilityService = require("./UserVisibilityService");
 /* ───────────────── HELPERS ───────────────── */
 
 function parseEventDate(dateStr) {
@@ -51,9 +53,13 @@ function formatDate(date) {
   )}:${pad(d.getSeconds())}`;
 }
 
-function mapPostResponse(post, loggedInUserId = null) {
+function mapPostResponse(post, loggedInUserId = null, ownerSocialMap = {}) {
   const user = post.userId;
   const dharamshala = post.dharamshalaId;
+  const ownerSocial =
+    user && ownerSocialMap[user._id?.toString()]
+      ? ownerSocialMap[user._id.toString()]
+      : {};
 
   return {
     id: post._id,
@@ -70,6 +76,10 @@ userResponse: user
       profileUrl: user.profileUrl || null,
       villageName: user.villageId?.name || "",
       districtName: user.districtId?.name || "",
+      isPrivate: true,
+      followStatus: ownerSocial.followStatus || "NONE",
+      followersCount: ownerSocial.followersCount || 0,
+      followingCount: ownerSocial.followingCount || 0,
     }
   : null,
 
@@ -94,11 +104,90 @@ userResponse: user
   };
 }
 
+async function getAllowedPostOwnerIds(loggedInUserId) {
+  if (!loggedInUserId || !mongoose.Types.ObjectId.isValid(loggedInUserId)) {
+    return [];
+  }
+
+  const blockedUserIds = await visibilityService.getBlockedUserIds(
+    loggedInUserId
+  );
+
+  const following = await UserFollow.find({
+    followerId: loggedInUserId,
+    status: 1,
+    ...(blockedUserIds.length
+      ? { followingId: { $nin: blockedUserIds } }
+      : {}),
+  })
+    .select("followingId")
+    .lean();
+
+  return [
+    new mongoose.Types.ObjectId(loggedInUserId),
+    ...following.map((item) => item.followingId),
+  ];
+}
+
+async function validatePostVisible(postId, loggedInUserId) {
+  if (!postId || !mongoose.Types.ObjectId.isValid(postId)) {
+    return {
+      allowed: false,
+      response: buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Valid postId is required",
+        null
+      ),
+    };
+  }
+
+  const post = await Post.findOne({
+    _id: postId,
+    status: 1,
+  }).lean();
+
+  if (!post) {
+    return {
+      allowed: false,
+      response: buildResponse(
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
+        "Post not found",
+        null
+      ),
+    };
+  }
+
+  const visibility = await visibilityService.canViewPost(
+    loggedInUserId,
+    post.userId
+  );
+
+  if (!visibility.canView) {
+    return {
+      allowed: false,
+      response: buildResponse(
+        DataConstant.CLIENT_ERROR.FORBIDDEN,
+        "You are not allowed to access this post",
+        {
+          followStatus: visibility.followStatus,
+          reason: visibility.reason,
+        }
+      ),
+    };
+  }
+
+  return {
+    allowed: true,
+    post,
+  };
+}
+
 
 
 
 async function getViewersService({
   postId,
+  viewerId,
   pageIndex = 0,
   pageSize = 20,
 }) {
@@ -121,6 +210,21 @@ async function getViewersService({
 
     const skip = pageIndex * pageSize;
 
+    const visiblePost =
+      await validatePostVisible(
+        postId,
+        viewerId
+      );
+
+    if (!visiblePost.allowed) {
+      return visiblePost.response;
+    }
+
+    const blockedUserIds =
+      await visibilityService.getBlockedUserIds(
+        viewerId
+      );
+
     logger.info("Fetching post viewers", {
       postId,
       skip,
@@ -131,6 +235,13 @@ async function getViewersService({
       postId,
       userId: { $ne: null },
     };
+
+    if (blockedUserIds.length > 0) {
+      query.userId = {
+        $ne: null,
+        $nin: blockedUserIds,
+      };
+    }
 
     const [viewers, totalRecords] =
       await Promise.all([
@@ -234,6 +345,7 @@ async function getViewersService({
 
 async function getLikersService({
   postId,
+  viewerId,
   pageIndex = 0,
   pageSize = 20,
 }) {
@@ -256,6 +368,21 @@ async function getLikersService({
 
     const skip = pageIndex * pageSize;
 
+    const visiblePost =
+      await validatePostVisible(
+        postId,
+        viewerId
+      );
+
+    if (!visiblePost.allowed) {
+      return visiblePost.response;
+    }
+
+    const blockedUserIds =
+      await visibilityService.getBlockedUserIds(
+        viewerId
+      );
+
     logger.info("Fetching post likers", {
       postId,
       skip,
@@ -266,6 +393,12 @@ async function getLikersService({
       postId,
       status: 1,
     };
+
+    if (blockedUserIds.length > 0) {
+      query.userId = {
+        $nin: blockedUserIds,
+      };
+    }
 
     const [likers, totalRecords] =
       await Promise.all([
@@ -599,6 +732,8 @@ async function deletePostService(body, loggedInUserId) {
     const { postId } = body;
 
     if (!postId) {
+      await session.abortTransaction();
+
       return buildResponse(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "postId is required"
@@ -769,8 +904,38 @@ async function getFeedService(query) {
 
     const loggedInUserId = query.userId || null;
     const targetUserId = query.targetUserId || null;
+    const blockedByMeUserIds =
+      await visibilityService.getBlockedByMeUserIds(
+        loggedInUserId
+      );
 
-    if (targetUserId) filter.userId = targetUserId;
+    if (targetUserId) {
+      filter.userId = targetUserId;
+    } else {
+      filter.userId = blockedByMeUserIds.length
+        ? { $nin: blockedByMeUserIds }
+        : { $ne: null };
+    }
+
+    if (
+      targetUserId &&
+      blockedByMeUserIds.some(
+        (blockedUserId) =>
+          blockedUserId.toString() ===
+          targetUserId.toString()
+      )
+    ) {
+      return buildResponse(
+        DataConstant.SUCCESS.OK,
+        "Posts fetched successfully",
+        {
+          content: [],
+          nextCursor: null,
+          hasNextPage: false,
+        }
+      );
+    }
+
     if (query.dharamshalaId) filter.dharamshalaId = query.dharamshalaId;
 
     if (query.cursor) {
@@ -799,6 +964,8 @@ async function getFeedService(query) {
     const hasNextPage = posts.length > limit;
     const finalPosts = hasNextPage ? posts.slice(0, limit) : posts;
     const postIds = finalPosts.map((p) => p._id);
+    const blockedViewerIds =
+      blockedByMeUserIds;
 
     logger.info(`finalPosts count: ${finalPosts.length}`);
     logger.info(`postIds: ${postIds.map((id) => id.toString()).join(", ")}`);
@@ -812,7 +979,12 @@ async function getFeedService(query) {
         {
           $match: {
             postId: { $in: postIds },
-            userId: { $ne: null },
+            userId: blockedViewerIds.length
+              ? {
+                  $ne: null,
+                  $nin: blockedViewerIds,
+                }
+              : { $ne: null },
           },
         },
         { $sort: { createdAt: -1 } },
@@ -888,6 +1060,7 @@ async function getFeedService(query) {
     }
 
     let likedPostIds = [];
+    let ownerSocialMap = {};
 
     if (loggedInUserId && postIds.length > 0) {
       const likes = await PostLike.find({
@@ -901,12 +1074,52 @@ async function getFeedService(query) {
       logger.info(`likedPostIds: ${JSON.stringify(likedPostIds)}`);
     }
 
+    if (finalPosts.length > 0) {
+      const ownerIds = [
+        ...new Set(
+          finalPosts
+            .map((post) => post.userId?._id?.toString())
+            .filter(Boolean)
+        ),
+      ];
+
+      const ownerSocialEntries = await Promise.all(
+        ownerIds.map(async (ownerId) => {
+          const [followStatus, counts] =
+            await Promise.all([
+              visibilityService.getFollowStatus(
+                loggedInUserId,
+                ownerId
+              ),
+              visibilityService.getFollowCounts(
+                ownerId
+              ),
+            ]);
+
+          return [
+            ownerId,
+            {
+              followStatus,
+              ...counts,
+            },
+          ];
+        })
+      );
+
+      ownerSocialMap =
+        Object.fromEntries(ownerSocialEntries);
+    }
+
     const content = finalPosts.map((post) => {
       const postId = post._id.toString();
 
       post.isLiked = likedPostIds.includes(postId);
 
-      const response = mapPostResponse(post, loggedInUserId);
+      const response = mapPostResponse(
+        post,
+        loggedInUserId,
+        ownerSocialMap
+      );
 
       response.latestViewers = latestViewersMap[postId] || [];
 
@@ -962,23 +1175,30 @@ async function likeUnlikePostService(body, loggedInUserId) {
     }
 
     if (!loggedInUserId) {
+      await session.abortTransaction();
+
       return buildResponse(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "userId is required"
       );
     }
 
+    const visiblePost =
+      await validatePostVisible(
+        postId,
+        loggedInUserId
+      );
+
+    if (!visiblePost.allowed) {
+      await session.abortTransaction();
+
+      return visiblePost.response;
+    }
+
     const post = await Post.findOne({
       _id: postId,
       status: 1,
     }).session(session);
-
-    if (!post) {
-      return buildResponse(
-        DataConstant.CLIENT_ERROR.NOT_FOUND,
-        "Post not found"
-      );
-    }
 
     postOwnerId = post.userId;
     postTitle = post.title;
@@ -1113,6 +1333,16 @@ async function addCommentService(body, loggedInUserId) {
       );
     }
 
+    const visiblePost =
+      await validatePostVisible(
+        postId,
+        loggedInUserId
+      );
+
+    if (!visiblePost.allowed) {
+      return visiblePost.response;
+    }
+
     const newComment = await PostComment.create({
       postId,
       userId: loggedInUserId,
@@ -1154,6 +1384,8 @@ async function getCommentsService(query) {
 
     const limit = Number(query.limit) || 20;
     const cursor = query.cursor;
+    const viewerId =
+      query.viewerId || query.userId || null;
 
     if (!postId) {
       logger.warn(
@@ -1166,11 +1398,32 @@ async function getCommentsService(query) {
       );
     }
 
+    const visiblePost =
+      await validatePostVisible(
+        postId,
+        viewerId
+      );
+
+    if (!visiblePost.allowed) {
+      return visiblePost.response;
+    }
+
+    const blockedUserIds =
+      await visibilityService.getBlockedUserIds(
+        viewerId
+      );
+
     const filter = {
       postId,
       status: 1,
       parentCommentId: null,
     };
+
+    if (blockedUserIds.length > 0) {
+      filter.userId = {
+        $nin: blockedUserIds,
+      };
+    }
 
     if (cursor) {
       filter.createdAt = {
@@ -1293,6 +1546,16 @@ async function viewPostService(body, loggedInUserId) {
       );
     }
 
+    const visiblePost =
+      await validatePostVisible(
+        postId,
+        loggedInUserId
+      );
+
+    if (!visiblePost.allowed) {
+      return visiblePost.response;
+    }
+
     const filter = {
       postId,
     };
@@ -1334,7 +1597,7 @@ async function viewPostService(body, loggedInUserId) {
 
 /* ───────────────── SHARE POST ───────────────── */
 
-async function sharePostService(body) {
+async function sharePostService(body, loggedInUserId) {
   try {
     const { postId } = body;
 
@@ -1343,6 +1606,16 @@ async function sharePostService(body) {
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
         "postId is required"
       );
+    }
+
+    const visiblePost =
+      await validatePostVisible(
+        postId,
+        loggedInUserId
+      );
+
+    if (!visiblePost.allowed) {
+      return visiblePost.response;
     }
 
     await Post.updateOne(

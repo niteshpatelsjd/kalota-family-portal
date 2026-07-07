@@ -22,6 +22,7 @@ const userCacheService = require("../redis/UserCacheService");
 const userSessionRepo = require("../repositories/UserSessionRepository");
 const SESSION_EVENTS = require("../constants/SessionEvents");
 const UserSession = require("../models/UserSession");
+const visibilityService = require("./UserVisibilityService");
 
 
 async function updateProfile(id, updates, file) {
@@ -917,11 +918,18 @@ async function blockUnblockUser(id, status, remark) {
 
 
 // 🟢 Get profile
-async function getProfile(id) {
+async function getProfile(id, viewerId = null) {
 
-  logger.info(`getProfile: id=${id}`);
+  logger.info(`getProfile: id=${id}, viewerId=${viewerId}`);
 
   try {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return buildResponse(
+        400,
+        "Valid user id is required",
+        null
+      );
+    }
 
     const user =
       await User.findById(id)
@@ -947,12 +955,55 @@ async function getProfile(id) {
       );
     }
 
+    const viewer = viewerId || id;
+
+    const [visibility, counts] =
+      await Promise.all([
+        visibilityService.canViewProfile(
+          viewer,
+          id
+        ),
+        visibilityService.getFollowCounts(id),
+      ]);
+
+    if (!visibility.canView) {
+      return buildResponse(
+        200,
+        "Profile is private",
+        {
+          id: user._id,
+          name: user.name || "",
+          firstName: user.firstName || "",
+          lastName: user.lastName || "",
+          profileUrl: user.profileUrl || "",
+          districtName:
+            user.districtId?.name || "",
+          villageName:
+            user.villageId?.name || "",
+          isPrivate: true,
+          canViewFullProfile: false,
+          followStatus:
+            visibility.followStatus,
+          privacyReason:
+            visibility.reason,
+          ...counts,
+        }
+      );
+    }
+
     return buildResponse(
       200,
       "Record found successfully",
-      userResponse.buildUserResponse(
-        user
-      )
+      {
+        ...userResponse.buildUserResponse(
+          user
+        ),
+        isPrivate: true,
+        canViewFullProfile: true,
+        followStatus:
+          visibility.followStatus,
+        ...counts,
+      }
     );
 
   } catch (error) {

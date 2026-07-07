@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 
 const userController = require("../controllers/UserController");
+const socialController = require("../controllers/SocialController");
 
 const multer = require("multer");
 
@@ -32,6 +33,8 @@ const upload = multer({ storage });
  * tags:
  *   - name: User Controller
  *     description: User authentication, profile and family registration APIs
+ *   - name: Social Controller
+ *     description: Follow request, followers/following and user block APIs
  */
 
 /**
@@ -185,6 +188,13 @@ router.post(
  *         required: true
  *         schema:
  *           type: string
+ *         description: Profile user id
+ *       - in: query
+ *         name: viewerId
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Logged-in user id. Required when viewing another user's private profile.
  *     responses:
  *       200:
  *         description: User profile fetched successfully
@@ -192,6 +202,343 @@ router.post(
 router.get(
   "/getProfile",
   userController.getProfile
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/follow/request:
+ *   post:
+ *     tags: [Social Controller]
+ *     summary: Send follow request to a private profile
+ *     description: Creates or reopens a pending follow request. Request is blocked if either user has blocked the other.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - requesterId
+ *               - targetUserId
+ *             properties:
+ *               requesterId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd1
+ *               targetUserId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd2
+ *     responses:
+ *       200:
+ *         description: Follow request sent or already exists
+ *       400:
+ *         description: Invalid request
+ *       403:
+ *         description: Follow request not allowed because user is blocked
+ */
+router.post(
+  "/follow/request",
+  socialController.sendFollowRequest
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/follow/respond:
+ *   post:
+ *     tags: [Social Controller]
+ *     summary: Accept or reject follow request
+ *     description: On ACCEPT, creates active follower/following relation. On REJECT, only marks request as rejected.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - requestId
+ *               - userId
+ *               - action
+ *             properties:
+ *               requestId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd3
+ *               userId:
+ *                 type: string
+ *                 description: Target user id who received the request
+ *                 example: 6853ac3e6c6f4e00123abcd2
+ *               action:
+ *                 type: string
+ *                 enum: [ACCEPT, REJECT]
+ *                 example: ACCEPT
+ *     responses:
+ *       200:
+ *         description: Follow request responded successfully
+ *       400:
+ *         description: Invalid request
+ *       404:
+ *         description: Pending follow request not found
+ */
+router.post(
+  "/follow/respond",
+  socialController.respondFollowRequest
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/follow/unfollow:
+ *   post:
+ *     tags: [Social Controller]
+ *     summary: Unfollow user
+ *     description: Removes the active follower/following relation. This does not block the user and does not restore or delete old follow request history.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - followerId
+ *               - followingId
+ *             properties:
+ *               followerId:
+ *                 type: string
+ *                 description: Logged-in user id who wants to unfollow
+ *                 example: 6853ac3e6c6f4e00123abcd1
+ *               followingId:
+ *                 type: string
+ *                 description: User id to unfollow
+ *                 example: 6853ac3e6c6f4e00123abcd2
+ *     responses:
+ *       200:
+ *         description: User unfollowed successfully
+ *       400:
+ *         description: Invalid request
+ *       404:
+ *         description: Active follow relation not found
+ */
+router.post(
+  "/follow/unfollow",
+  socialController.unfollowUser
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/follow/requests:
+ *   get:
+ *     tags: [Social Controller]
+ *     summary: Get pending follow requests
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: 6853ac3e6c6f4e00123abcd2
+ *       - in: query
+ *         name: type
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [RECEIVED, SENT]
+ *           default: RECEIVED
+ *         description: RECEIVED returns requests sent to userId, SENT returns requests created by userId
+ *       - in: query
+ *         name: pageIndex
+ *         schema:
+ *           type: integer
+ *           example: 0
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           example: 20
+ *     responses:
+ *       200:
+ *         description: Follow requests fetched successfully
+ */
+router.get(
+  "/follow/requests",
+  socialController.getFollowRequests
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/follow/followers:
+ *   get:
+ *     tags: [Social Controller]
+ *     summary: Get followers list with counts
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User whose followers are being fetched
+ *         example: 6853ac3e6c6f4e00123abcd2
+ *       - in: query
+ *         name: viewerId
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Logged-in user id used to filter blocked users and calculate followStatus
+ *         example: 6853ac3e6c6f4e00123abcd1
+ *       - in: query
+ *         name: pageIndex
+ *         schema:
+ *           type: integer
+ *           example: 0
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           example: 20
+ *     responses:
+ *       200:
+ *         description: Followers fetched successfully
+ */
+router.get(
+  "/follow/followers",
+  socialController.getFollowers
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/follow/following:
+ *   get:
+ *     tags: [Social Controller]
+ *     summary: Get following list with counts
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User whose following list is being fetched
+ *         example: 6853ac3e6c6f4e00123abcd2
+ *       - in: query
+ *         name: viewerId
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Logged-in user id used to filter blocked users and calculate followStatus
+ *         example: 6853ac3e6c6f4e00123abcd1
+ *       - in: query
+ *         name: pageIndex
+ *         schema:
+ *           type: integer
+ *           example: 0
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           example: 20
+ *     responses:
+ *       200:
+ *         description: Following fetched successfully
+ */
+router.get(
+  "/follow/following",
+  socialController.getFollowing
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/block:
+ *   post:
+ *     tags: [Social Controller]
+ *     summary: Block user
+ *     description: Blocks the target user, removes follower/following relations both ways and cancels pending follow requests both ways.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - blockerId
+ *               - blockedUserId
+ *             properties:
+ *               blockerId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd1
+ *               blockedUserId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd2
+ *     responses:
+ *       200:
+ *         description: User blocked successfully
+ *       400:
+ *         description: Invalid request
+ *       404:
+ *         description: User not found or inactive
+ */
+router.post(
+  "/block",
+  socialController.blockUser
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/unblock:
+ *   post:
+ *     tags: [Social Controller]
+ *     summary: Unblock user
+ *     description: Unblocks the target user. Follow relation is not restored automatically.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - blockerId
+ *               - blockedUserId
+ *             properties:
+ *               blockerId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd1
+ *               blockedUserId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd2
+ *     responses:
+ *       200:
+ *         description: User unblocked successfully
+ *       400:
+ *         description: Invalid request
+ *       404:
+ *         description: Active block record not found
+ */
+router.post(
+  "/unblock",
+  socialController.unblockUser
+);
+
+/**
+ * @openapi
+ * /admin/mobile/user/socialSummary:
+ *   get:
+ *     tags: [Social Controller]
+ *     summary: Get user social summary
+ *     description: Returns profile card, profile privacy status, followStatus, followersCount and followingCount.
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: 6853ac3e6c6f4e00123abcd2
+ *       - in: query
+ *         name: viewerId
+ *         required: false
+ *         schema:
+ *           type: string
+ *         example: 6853ac3e6c6f4e00123abcd1
+ *     responses:
+ *       200:
+ *         description: Social summary fetched successfully
+ */
+router.get(
+  "/socialSummary",
+  socialController.getSocialSummary
 );
 
 /**

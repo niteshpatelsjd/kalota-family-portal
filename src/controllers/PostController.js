@@ -73,10 +73,11 @@ async function getFeed(req, res) {
 
 async function getViewers(req, res) {
   try {
-    const { postId, pageIndex = 0, pageSize = 20 } = req.query;
+    const { postId, viewerId, userId, pageIndex = 0, pageSize = 20 } = req.query;
 
     const response = await getViewersService({
       postId,
+      viewerId: viewerId || userId,
       pageIndex: Number(pageIndex),
       pageSize: Number(pageSize),
     });
@@ -92,10 +93,11 @@ async function getViewers(req, res) {
 
 async function getLikers(req, res) {
   try {
-    const { postId, pageIndex = 0, pageSize = 20 } = req.query;
+    const { postId, viewerId, userId, pageIndex = 0, pageSize = 20 } = req.query;
 
     const response = await getLikersService({
       postId,
+      viewerId: viewerId || userId,
       pageIndex: Number(pageIndex),
       pageSize: Number(pageSize),
     });
@@ -167,7 +169,12 @@ async function getComments(req, res) {
 
 
 async function sharePost(req, res) {
-  const response = await sharePostService(req.body);
+  const userId =
+    req.user?._id ||
+    req.user?.id ||
+    req.body.userId;
+
+  const response = await sharePostService(req.body, userId);
 
   return res.status(200).json(response);
 }

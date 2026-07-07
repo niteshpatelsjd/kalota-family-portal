@@ -113,11 +113,11 @@ exports.blockUnblockUser = async (req, res) => {
 
 // 🔹 Me
 exports.getProfile = async (req, res) => {
-  const { id } = req.query; // 👈 get id from query param
-  console.log(`📥 Incoming request: getProfile with id=${id}`);
+  const { id, viewerId } = req.query; // 👈 get id from query param
+  console.log(`📥 Incoming request: getProfile with id=${id}, viewerId=${viewerId}`);
 
   try {
-    const result = await userService.getProfile(id);
+    const result = await userService.getProfile(id, viewerId);
     console.log(`✅ getProfile success:`, result);
 
     res.status(200).json(result);
@@ -337,5 +337,4 @@ exports.registerFamilyMember =
       });
     }
   };
-
 

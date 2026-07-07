@@ -249,7 +249,8 @@ router.delete(
  * @swagger
  * /admin/post/getFeed:
  *   get:
- *     summary: Get public post feed with cursor pagination
+ *     summary: Get home post feed with cursor pagination
+ *     description: Returns active posts without follow/private-profile filtering. If userId is passed, posts from users blocked by this logged-in user are hidden. Each post owner response includes followStatus, followersCount and followingCount for home screen badges.
  *     tags: [Post]
  *     parameters:
  *       - in: query
@@ -258,7 +259,7 @@ router.delete(
  *         schema:
  *           type: string
  *         example: 6853ac3e6c6f4e00123abcd1
- *         description: Logged-in user id. Used only for isLiked calculation.
+ *         description: Logged-in user id. Used for isLiked calculation and hiding posts from users blocked by this user.
  *
  *       - in: query
  *         name: targetUserId
@@ -266,7 +267,7 @@ router.delete(
  *         schema:
  *           type: string
  *         example: 6853ac3e6c6f4e00123abcd2
- *         description: Optional profile user id. Use this only when fetching a specific user's posts.
+ *         description: Optional profile user id. Use this only when fetching a specific user's posts. If this user is blocked by logged-in userId, empty feed is returned.
  *
  *       - in: query
  *         name: dharamshalaId

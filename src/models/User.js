@@ -103,6 +103,12 @@ const UserSchema = new mongoose.Schema(
       default: false,
     },
 
+    profileVisibility: {
+      type: String,
+      enum: ["PRIVATE"],
+      default: "PRIVATE",
+    },
+
     isVerified: {
       type: Boolean,
       default: false,
