@@ -426,7 +426,7 @@ async function verifyOtp(
       );
     }
 
-    try {
+       try {
       if (deviceToken && deviceType && deviceId) {
         const userDeviceData = {
           userId: user._id,
@@ -437,57 +437,23 @@ async function verifyOtp(
           status: 1,
         };
 
-        logger.info(
-          `Saving device token for user ${user._id}`
-        );
-
-        logger.info(
-          `Device Payload => ${JSON.stringify({
-            userId: user._id,
-            deviceType,
-            deviceId,
-            notificationEnable: true,
-            status: 1,
-          })}`
-        );
-
-        logger.info(
-          `FCM Token => ${
-            deviceToken
-              ? deviceToken.substring(0, 50) + "..."
-              : "NULL"
-          }`
-        );
+        logger.info(`Saving device token for user ${user._id}`);
 
         const updatedDevice =
-          await userDeviceRepo.upsertUserDevice(
-            userDeviceData
-          );
+          await userDeviceRepo.upsertUserDevice(userDeviceData);
 
-        logger.info(
-          `User device updated successfully`
-        );
-
+        logger.info(`User device updated successfully`);
         logger.info(
           `Device Record => ${JSON.stringify({
             id: updatedDevice._id,
             userId: updatedDevice.userId,
             deviceId: updatedDevice.deviceId,
             deviceType: updatedDevice.deviceType,
-            notificationEnable:
-              updatedDevice.notificationEnable,
+            notificationEnable: updatedDevice.notificationEnable,
           })}`
         );
       } else {
         logger.warn(`Device registration skipped`);
-
-        logger.warn(
-          `userId=${user._id}, deviceType=${
-            deviceType || "NULL"
-          }, deviceId=${
-            deviceId || "NULL"
-          }, tokenPresent=${!!deviceToken}`
-        );
       }
     } catch (deviceErr) {
       logger.error(
@@ -496,20 +462,15 @@ async function verifyOtp(
       );
     }
 
-    const committeeAccess =
-  await getCommitteeAccessByMobileUserId(user._id);
-    return buildResponse(
-  200,
-  "OTP verified successfully",
-  {
-    isRegistered: true,
-    accessToken: token,
-    user: {
-      ...userResponse.buildUserResponse(user),
-      committeeAccess,
-    },
-  }
-);
+    return buildResponse(200, "OTP verified successfully", {
+      isRegistered: true,
+      accessToken: token,
+      user: {
+        ...userResponse.buildUserResponse(user),
+      },
+    });
+
+
   } catch (err) {
     logger.error(
       `verifyOtp failed for ${key}: ${err.message}`,

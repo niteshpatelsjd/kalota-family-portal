@@ -1138,7 +1138,7 @@ async function getAllDharamshalaCommittee({
 
       {
         $lookup: {
-          from: "admin_users",
+          from: "users",
           localField: "userId",
           foreignField: "_id",
           as: "user",

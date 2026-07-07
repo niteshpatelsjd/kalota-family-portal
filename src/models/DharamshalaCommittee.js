@@ -13,7 +13,7 @@ const DharamshalaCommitteeSchema =
       userId: {
         type:
           mongoose.Schema.Types.ObjectId,
-        ref: "admin_user",
+        ref: "user",
         required: true,
       },
 

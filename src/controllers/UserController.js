@@ -96,7 +96,7 @@ exports.verifyOtp = async (req, res) => {
   );
 
   return res
-    .status(result.responseCode || 200)
+    .status( 200)
     .json(result);
 };
 
