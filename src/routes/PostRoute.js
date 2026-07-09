@@ -164,12 +164,19 @@ router.put(
  *   get:
  *     tags: [Post]
  *     summary: Get post viewers
+ *     description: Returns viewers for a post. This API does not require follow/private-profile access; it only blocks access or filters users based on block relationships.
  *     parameters:
  *       - in: query
  *         name: postId
  *         required: true
  *         schema:
  *           type: string
+ *       - in: query
+ *         name: viewerId
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Logged-in user id used for block filtering
  *       - in: query
  *         name: pageIndex
  *         schema:
@@ -192,12 +199,19 @@ router.get("/getViewers", getViewers);
  *   get:
  *     tags: [Post]
  *     summary: Get post likers
+ *     description: Returns users who liked a post. This API does not require follow/private-profile access; it only blocks access or filters users based on block relationships.
  *     parameters:
  *       - in: query
  *         name: postId
  *         required: true
  *         schema:
  *           type: string
+ *       - in: query
+ *         name: viewerId
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Logged-in user id used for block filtering
  *       - in: query
  *         name: pageIndex
  *         schema:
@@ -403,6 +417,7 @@ router.post("/viewPost", viewPost);
  *   get:
  *     summary: Get post comments
  *     tags: [Post]
+ *     description: Returns comments for a post. This API does not require follow/private-profile access; it only blocks access or filters users based on block relationships.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -412,6 +427,12 @@ router.post("/viewPost", viewPost);
  *         schema:
  *           type: string
  *           example: 6853ac3e6c6f4e00123abcd9
+ *       - in: query
+ *         name: viewerId
+ *         schema:
+ *           type: string
+ *           example: 6853ac3e6c6f4e00123abcd1
+ *         description: Logged-in user id used for block filtering
  *       - in: query
  *         name: limit
  *         schema:

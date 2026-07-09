@@ -182,6 +182,66 @@ async function validatePostVisible(postId, loggedInUserId) {
   };
 }
 
+async function validatePostBlockOnly(postId, loggedInUserId) {
+  if (!postId || !mongoose.Types.ObjectId.isValid(postId)) {
+    return {
+      allowed: false,
+      response: buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Valid postId is required",
+        null
+      ),
+    };
+  }
+
+  const post = await Post.findOne({
+    _id: postId,
+    status: 1,
+  }).lean();
+
+  if (!post) {
+    return {
+      allowed: false,
+      response: buildResponse(
+        DataConstant.CLIENT_ERROR.NOT_FOUND,
+        "Post not found",
+        null
+      ),
+    };
+  }
+
+  if (loggedInUserId) {
+    const blockState =
+      await visibilityService.getBlockBetween(
+        loggedInUserId,
+        post.userId
+      );
+
+    if (blockState.isBlocked) {
+      return {
+        allowed: false,
+        response: buildResponse(
+          DataConstant.CLIENT_ERROR.FORBIDDEN,
+          "You are not allowed to access this post",
+          {
+            followStatus: blockState.blockedByMe
+              ? "BLOCKED_BY_ME"
+              : "BLOCKED_ME",
+            reason: blockState.blockedByMe
+              ? "BLOCKED_BY_ME"
+              : "BLOCKED_ME",
+          }
+        ),
+      };
+    }
+  }
+
+  return {
+    allowed: true,
+    post,
+  };
+}
+
 
 
 
@@ -211,7 +271,7 @@ async function getViewersService({
     const skip = pageIndex * pageSize;
 
     const visiblePost =
-      await validatePostVisible(
+      await validatePostBlockOnly(
         postId,
         viewerId
       );
@@ -369,7 +429,7 @@ async function getLikersService({
     const skip = pageIndex * pageSize;
 
     const visiblePost =
-      await validatePostVisible(
+      await validatePostBlockOnly(
         postId,
         viewerId
       );
@@ -1399,7 +1459,7 @@ async function getCommentsService(query) {
     }
 
     const visiblePost =
-      await validatePostVisible(
+      await validatePostBlockOnly(
         postId,
         viewerId
       );
