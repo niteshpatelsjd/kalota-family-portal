@@ -19,6 +19,11 @@ const DharamshalaLedger =
 
 const DharamshalaDonation =
   require("../models/DharamshalaDonation");
+const User =
+  require("../models/User");
+const {
+  sendNotificationToUserService,
+} = require("./NotificationService");
 
   const Dharamshala = require("../models/Dharamshala");
 
@@ -41,6 +46,112 @@ const {
   generateLedgerNumber,
   generateExpenseNumber,
 } = require("../utils/NumberGenerater");
+
+function getUserDisplayName(user) {
+  if (!user) return "Someone";
+
+  return (
+    user.name ||
+    `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+    "Someone"
+  );
+}
+
+async function sendExpenseCreatedVillageNotifications({
+  expense,
+  createdBy,
+}) {
+  try {
+    if (!createdBy) {
+      logger.info("Expense village notification skipped: createdBy missing", {
+        expenseId: expense?._id,
+        expenseNumber: expense?.expenseNumber,
+      });
+
+      return;
+    }
+
+    const creator = await User.findById(createdBy)
+      .select("name firstName lastName villageId")
+      .lean();
+
+    if (!creator?.villageId) {
+      logger.info("Expense village notification skipped: creator village missing", {
+        expenseId: expense?._id,
+        expenseNumber: expense?.expenseNumber,
+        createdBy,
+      });
+
+      return;
+    }
+
+    const users = await User.find({
+      _id: { $ne: createdBy },
+      villageId: creator.villageId,
+      status: 1,
+    })
+      .select("_id")
+      .lean();
+
+    if (!users.length) {
+      logger.info("Expense village notification skipped: no village users found", {
+        expenseId: expense?._id,
+        expenseNumber: expense?.expenseNumber,
+        createdBy,
+        villageId: creator.villageId,
+      });
+
+      return;
+    }
+
+    const creatorName = getUserDisplayName(creator);
+
+    const results = await Promise.allSettled(
+      users.map((user) =>
+        sendNotificationToUserService({
+          userId: user._id,
+          title: "New expense created",
+          message: `${creatorName} created an expense of ₹${Number(
+            expense.amount || 0
+          )}`,
+          type: "EXPENSE_CREATED",
+          data: {
+            expenseId: expense._id.toString(),
+            expenseNumber: expense.expenseNumber || "",
+            expenseType: expense.expenseType || "",
+            expenseSource: expense.expenseSource || "",
+            title: expense.title || "",
+            amount: String(expense.amount || 0),
+            createdBy: createdBy.toString(),
+            creatorName,
+            villageId: creator.villageId.toString(),
+          },
+        })
+      )
+    );
+
+    const failedCount = results.filter(
+      (result) => result.status === "rejected"
+    ).length;
+
+    logger.info("Expense village notifications processed", {
+      expenseId: expense?._id,
+      expenseNumber: expense?.expenseNumber,
+      createdBy,
+      villageId: creator.villageId,
+      totalUsers: users.length,
+      failedCount,
+    });
+  } catch (notificationErr) {
+    logger.error("Expense village notification failed", {
+      error: notificationErr.message,
+      stack: notificationErr.stack,
+      expenseId: expense?._id,
+      expenseNumber: expense?.expenseNumber,
+      createdBy,
+    });
+  }
+}
 
 const prepareExpenseItems = async ({ items, session }) => {
   if (!Array.isArray(items) || items.length === 0) {
@@ -2458,6 +2569,12 @@ exports.addDirectBankExpense = async (data) => {
 await InventorySyncService.syncExpenseItemToAssetOrInventory(
   expense._id
 );
+
+    await sendExpenseCreatedVillageNotifications({
+      expense,
+      createdBy,
+    });
+
     return buildResponse(
       DataConstant.SUCCESS.OK,
       "Direct bank expense created successfully",
@@ -2657,6 +2774,12 @@ exports.addExpenseAgainstAdvance = async (data) => {
 await InventorySyncService.syncExpenseItemToAssetOrInventory(
   expense._id
 );
+
+    await sendExpenseCreatedVillageNotifications({
+      expense,
+      createdBy,
+    });
+
     return buildResponse(
       DataConstant.SUCCESS.OK,
       "Expense settled against advance successfully",

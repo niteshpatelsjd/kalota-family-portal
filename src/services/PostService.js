@@ -104,6 +104,101 @@ userResponse: user
   };
 }
 
+function getUserDisplayName(user) {
+  if (!user) return "Someone";
+
+  return (
+    user.name ||
+    `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+    "Someone"
+  );
+}
+
+async function sendPostCreatedVillageNotifications({ post, creatorId }) {
+  try {
+    if (!creatorId) return;
+
+    const creator = await User.findById(creatorId)
+      .select("name firstName lastName villageId")
+      .lean();
+
+    if (!creator?.villageId) {
+      logger.warn("Post village notification skipped: creator village missing", {
+        postId: post._id,
+        creatorId,
+      });
+
+      return;
+    }
+
+    const users = await User.find({
+      _id: { $ne: creatorId },
+      villageId: creator.villageId,
+      status: 1,
+    })
+      .select("_id")
+      .lean();
+
+    if (!users.length) {
+      logger.info("Post village notification skipped: no village users found", {
+        postId: post._id,
+        creatorId,
+        villageId: creator.villageId,
+      });
+
+      return;
+    }
+
+    const creatorName = getUserDisplayName(creator);
+    const postType = post.type === "EVENT" ? "event" : "post";
+
+    const results = await Promise.allSettled(
+      users.map((user) =>
+        sendNotificationToUserService({
+          userId: user._id,
+          title:
+            post.type === "EVENT"
+              ? "New event in your village"
+              : "New post in your village",
+          message: `${creatorName} created a new ${postType}`,
+          type: "POST_CREATED",
+          data: {
+            postId: post._id.toString(),
+            createdBy: creatorId.toString(),
+            creatorName,
+            villageId: creator.villageId.toString(),
+            postType: post.type || "POST",
+            postTitle: post.title || "",
+          },
+          imageUrl:
+            Array.isArray(post.mediaUrls) && post.mediaUrls.length
+              ? post.mediaUrls[0]
+              : null,
+        })
+      )
+    );
+
+    const failedCount = results.filter(
+      (result) => result.status === "rejected"
+    ).length;
+
+    logger.info("Post village notifications processed", {
+      postId: post._id,
+      creatorId,
+      villageId: creator.villageId,
+      totalUsers: users.length,
+      failedCount,
+    });
+  } catch (notificationErr) {
+    logger.error("Post village notification failed", {
+      error: notificationErr.message,
+      stack: notificationErr.stack,
+      postId: post?._id,
+      creatorId,
+    });
+  }
+}
+
 async function getAllowedPostOwnerIds(loggedInUserId) {
   if (!loggedInUserId || !mongoose.Types.ObjectId.isValid(loggedInUserId)) {
     return [];
@@ -618,6 +713,11 @@ async function createPostService(body, files, loggedInUserId) {
         type === "EVENT"
           ? parseEventDate(eventDate)
           : null,
+    });
+
+    await sendPostCreatedVillageNotifications({
+      post,
+      creatorId: loggedInUserId,
     });
 
     return buildResponse(

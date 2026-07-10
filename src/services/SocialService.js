@@ -8,6 +8,9 @@ const DataConstant = require("../constants/DataConstant");
 const logger = require("../utils/logger");
 const userResponse = require("../response/UserResponse");
 const visibilityService = require("./UserVisibilityService");
+const {
+  sendNotificationToUserService,
+} = require("./NotificationService");
 
 function normalizeAction(action) {
   return String(action || "").trim().toUpperCase();
@@ -22,6 +25,77 @@ function parsePagination(pageIndex = 0, pageSize = 20) {
     limit,
     skip: page * limit,
   };
+}
+
+function getUserDisplayName(user) {
+  if (!user) return "Someone";
+
+  return (
+    user.name ||
+    `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+    "Someone"
+  );
+}
+
+async function sendFollowRequestNotification({
+  requestId,
+  requester,
+  targetUserId,
+}) {
+  try {
+    const requesterName = getUserDisplayName(requester);
+
+    await sendNotificationToUserService({
+      userId: targetUserId,
+      title: "New follow request",
+      message: `${requesterName} sent you a follow request`,
+      type: "FOLLOW_REQUEST",
+      data: {
+        requestId: requestId.toString(),
+        requesterId: requester._id.toString(),
+        requesterName,
+      },
+    });
+  } catch (notificationErr) {
+    logger.error("Follow request notification failed", {
+      error: notificationErr.message,
+      stack: notificationErr.stack,
+      requestId,
+      targetUserId,
+    });
+  }
+}
+
+async function sendFollowAcceptedNotification({
+  requestId,
+  requesterId,
+  acceptedByUser,
+  acceptedByUserId,
+}) {
+  try {
+    const acceptedByName = getUserDisplayName(acceptedByUser);
+
+    await sendNotificationToUserService({
+      userId: requesterId,
+      title: "Follow request accepted",
+      message: `${acceptedByName} accepted your follow request`,
+      type: "FOLLOW_ACCEPTED",
+      data: {
+        requestId: requestId.toString(),
+        acceptedBy: (
+          acceptedByUser?._id || acceptedByUserId
+        ).toString(),
+        acceptedByName,
+      },
+    });
+  } catch (notificationErr) {
+    logger.error("Follow accepted notification failed", {
+      error: notificationErr.message,
+      stack: notificationErr.stack,
+      requestId,
+      requesterId,
+    });
+  }
 }
 
 async function validateActiveUsers(firstUserId, secondUserId) {
@@ -148,6 +222,12 @@ async function sendFollowRequest({ requesterId, targetUserId }) {
       existingRequest.respondedAt = null;
       await existingRequest.save();
 
+      await sendFollowRequestNotification({
+        requestId: existingRequest._id,
+        requester: validation.firstUser,
+        targetUserId,
+      });
+
       return buildResponse(
         DataConstant.SUCCESS.OK,
         "Follow request sent successfully",
@@ -162,6 +242,12 @@ async function sendFollowRequest({ requesterId, targetUserId }) {
       requesterId,
       targetUserId,
       status: "PENDING",
+    });
+
+    await sendFollowRequestNotification({
+      requestId: request._id,
+      requester: validation.firstUser,
+      targetUserId,
     });
 
     return buildResponse(
@@ -280,6 +366,15 @@ async function respondFollowRequest({ requestId, userId, action }) {
     );
 
     await session.commitTransaction();
+
+    const acceptedByUser = await User.findById(userId).lean();
+
+    await sendFollowAcceptedNotification({
+      requestId: request._id,
+      requesterId: request.requesterId,
+      acceptedByUser,
+      acceptedByUserId: userId,
+    });
 
     return buildResponse(
       DataConstant.SUCCESS.OK,

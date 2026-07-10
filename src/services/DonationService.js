@@ -11,6 +11,9 @@ const DharamshalaVoucher = require("../models/DharamshalaVoucher");
 const DharamshalaLedger = require("../models/DharamshalaLedger");
 const DharamshalaBankAccount = require("../models/DharamshalaBankAccount");
 const DharamshalaItem = require("../models/DharamshalaItem");
+const {
+  sendNotificationToUserService,
+} = require("./NotificationService");
 
 
 const buildResponse = require("../utils/response");
@@ -22,6 +25,86 @@ const {
   generateVoucherNumber,
   generateLedgerNumber,
 } = require("../utils/NumberGenerater");
+
+async function sendDonationNotification({
+  donation,
+  title,
+  message,
+  type,
+  extraData = {},
+}) {
+  try {
+    if (!donation?.donorUserId) {
+      logger.info("Donation notification skipped: donorUserId missing", {
+        donationId: donation?._id,
+        receiptNumber: donation?.receiptNumber,
+        type,
+      });
+
+      return;
+    }
+
+    await sendNotificationToUserService({
+      userId: donation.donorUserId,
+      title,
+      message,
+      type,
+      data: {
+        donationId: donation._id.toString(),
+        receiptNumber: donation.receiptNumber || "",
+        donationType: donation.donationType || "",
+        donationSource: donation.donationSource || "",
+        amount: String(donation.amount || 0),
+        itemName: donation.itemName || "",
+        itemStatus: donation.itemStatus || "",
+        depositStatus: donation.depositStatus || "",
+        ...extraData,
+      },
+    });
+  } catch (notificationErr) {
+    logger.error("Donation notification failed", {
+      error: notificationErr.message,
+      stack: notificationErr.stack,
+      donationId: donation?._id,
+      receiptNumber: donation?.receiptNumber,
+      type,
+    });
+  }
+}
+
+function buildDonationCreatedMessage(donation) {
+  if (donation.donationType === "ITEM") {
+    return `Your item donation ${donation.receiptNumber || ""} has been created`;
+  }
+
+  return `Your donation ${donation.receiptNumber || ""} has been created`;
+}
+
+function buildDonationDepositMessage(donation) {
+  return `Your donation ${donation.receiptNumber || ""} has been deposited`;
+}
+
+function buildItemVerificationMessage(donation) {
+  const status = donation.itemStatus || "";
+
+  if (status === "RECEIVED") {
+    return `Your item donation ${donation.receiptNumber || ""} has been received`;
+  }
+
+  if (status === "PARTIALLY_RECEIVED") {
+    return `Your item donation ${donation.receiptNumber || ""} has been partially received`;
+  }
+
+  if (status === "NOT_RECEIVED") {
+    return `Your item donation ${donation.receiptNumber || ""} was marked not received`;
+  }
+
+  if (status === "CANCELLED") {
+    return `Your item donation ${donation.receiptNumber || ""} has been cancelled`;
+  }
+
+  return `Your item donation ${donation.receiptNumber || ""} has been updated`;
+}
 
 
 async function createDonation(body, userId) {
@@ -407,6 +490,24 @@ async function createDonation(body, userId) {
 
     await session.commitTransaction();
 
+    if (
+      savedDonation.donorUserId &&
+      ["COMMITTEE_COLLECTION", "DIRECT_OFFICE"].includes(
+        savedDonation.donationSource
+      )
+    ) {
+      await sendDonationNotification({
+        donation: savedDonation,
+        title: "Donation created",
+        message: buildDonationCreatedMessage(savedDonation),
+        type: "DONATION_CREATED",
+        extraData: {
+          createdBy: userId ? userId.toString() : "",
+          collectionStatus: savedDonation.collectionStatus || "",
+        },
+      });
+    }
+
     return buildResponse(
       DataConstant.SUCCESS.OK,
       "Donation created successfully",
@@ -760,6 +861,18 @@ async function depositCashDonation(body, file) {
 
     await session.commitTransaction();
 
+    await sendDonationNotification({
+      donation,
+      title: "Donation deposited",
+      message: buildDonationDepositMessage(donation),
+      type: "DONATION_DEPOSITED",
+      extraData: {
+        bankAccountId: bankAccountId ? bankAccountId.toString() : "",
+        referenceNumber: referenceNumber || "",
+        verifiedBy: updatedBy ? updatedBy.toString() : "",
+      },
+    });
+
     return buildResponse(
       DataConstant.SUCCESS.OK,
       "Donation deposited successfully",
@@ -979,6 +1092,17 @@ async function verifyItemDonation(body) {
       donationId: donation._id,
       itemStatus: donation.itemStatus,
       receivedQuantity: donation.receivedQuantity,
+    });
+
+    await sendDonationNotification({
+      donation,
+      title: "Item donation updated",
+      message: buildItemVerificationMessage(donation),
+      type: "ITEM_DONATION_VERIFIED",
+      extraData: {
+        receivedQuantity: String(donation.receivedQuantity || 0),
+        verifiedBy: updatedBy ? updatedBy.toString() : "",
+      },
     });
 
     return buildResponse(
