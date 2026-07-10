@@ -657,6 +657,87 @@ async function unblockUser({ blockerId, blockedUserId }) {
   }
 }
 
+async function getBlockedUsers({
+  userId,
+  pageIndex = 0,
+  pageSize = 20,
+}) {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Valid userId is required",
+        null
+      );
+    }
+
+    const { page, limit, skip } = parsePagination(pageIndex, pageSize);
+    const query = {
+      blockerId: userId,
+      status: 1,
+    };
+
+    const [blockedRecords, totalRecords] = await Promise.all([
+      UserBlock.find(query)
+        .populate({
+          path: "blockedUserId",
+          select: "name firstName lastName profileUrl villageId districtId status",
+          populate: [
+            { path: "villageId", select: "name" },
+            { path: "districtId", select: "name" },
+          ],
+        })
+        .sort({ blockedAt: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      UserBlock.countDocuments(query),
+    ]);
+
+    const content = await Promise.all(
+      blockedRecords
+        .filter((item) => item.blockedUserId)
+        .map(async (item) => ({
+          blockId: item._id,
+          blockedAt: item.blockedAt || item.createdAt,
+          user: {
+            ...(await buildUserCard(item.blockedUserId, userId)),
+            followStatus: "BLOCKED_BY_ME",
+          },
+        }))
+    );
+
+    return buildResponse(
+      DataConstant.SUCCESS.OK,
+      "Blocked users fetched successfully",
+      {
+        content,
+        pageIndex: page,
+        pageSize: limit,
+        totalRecords,
+        totalPages: Math.ceil(totalRecords / limit),
+        isLast: page + 1 >= Math.ceil(totalRecords / limit),
+        hasNext: page + 1 < Math.ceil(totalRecords / limit),
+        hasPrevious: page > 0,
+      }
+    );
+  } catch (error) {
+    logger.error("getBlockedUsers error", {
+      error: error.message,
+      stack: error.stack,
+      userId,
+      pageIndex,
+      pageSize,
+    });
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR.SERVER_ERROR,
+      "Something went wrong",
+      null
+    );
+  }
+}
+
 async function unfollowUser({ followerId, followingId }) {
   try {
     const validation = await validateActiveUsers(followerId, followingId);
@@ -763,6 +844,7 @@ module.exports = {
   getFollowing,
   blockUser,
   unblockUser,
+  getBlockedUsers,
   unfollowUser,
   getSocialSummary,
 };

@@ -514,6 +514,46 @@ router.post(
 
 /**
  * @openapi
+ * /admin/mobile/user/blockedUsers:
+ *   get:
+ *     tags: [Social Controller]
+ *     summary: Get blocked users list
+ *     description: Returns active users blocked by the given userId with pagination. This list is based on UserBlock records where userId is the blocker.
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User id who blocked other users
+ *         example: 6853ac3e6c6f4e00123abcd1
+ *       - in: query
+ *         name: pageIndex
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         example: 0
+ *       - in: query
+ *         name: pageSize
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         example: 20
+ *     responses:
+ *       200:
+ *         description: Blocked users fetched successfully
+ *       400:
+ *         description: Invalid userId
+ */
+router.get(
+  "/blockedUsers",
+  socialController.getBlockedUsers
+);
+
+/**
+ * @openapi
  * /admin/mobile/user/socialSummary:
  *   get:
  *     tags: [Social Controller]

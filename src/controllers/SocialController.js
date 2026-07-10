@@ -42,6 +42,12 @@ exports.unblockUser = async (req, res) => {
   return res.status(response.responseCode || 200).json(response);
 };
 
+exports.getBlockedUsers = async (req, res) => {
+  const response = await socialService.getBlockedUsers(req.query);
+
+  return res.status(response.responseCode || 200).json(response);
+};
+
 exports.unfollowUser = async (req, res) => {
   const response = await socialService.unfollowUser(req.body);
 
