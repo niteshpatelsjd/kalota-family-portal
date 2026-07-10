@@ -47,6 +47,7 @@ async function sendFollowRequestNotification({
 
     await sendNotificationToUserService({
       userId: targetUserId,
+      senderId: requester._id,
       title: "New follow request",
       message: `${requesterName} sent you a follow request`,
       type: "FOLLOW_REQUEST",
@@ -77,6 +78,7 @@ async function sendFollowAcceptedNotification({
 
     await sendNotificationToUserService({
       userId: requesterId,
+      senderId: acceptedByUser?._id || acceptedByUserId,
       title: "Follow request accepted",
       message: `${acceptedByName} accepted your follow request`,
       type: "FOLLOW_ACCEPTED",

@@ -1,6 +1,7 @@
 const Notification = require("../models/Notification");
 const UserDevice = require("../models/UserDevice");
 const User = require("../models/User");
+const mongoose = require("mongoose");
 
 const buildResponse = require("../utils/response");
 const logger = require("../utils/logger");
@@ -13,6 +14,56 @@ const DataConstant = {
   INTERNAL_SERVER_ERROR: 500,
 };
 
+function getUserDisplayName(user) {
+  if (!user) return "";
+
+  return (
+    user.name ||
+    `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+    ""
+  );
+}
+
+async function buildNotificationSenderPayload({
+  senderId,
+  data = {},
+  imageUrl = null,
+}) {
+  const finalData = {
+    ...data,
+  };
+
+  let finalImageUrl = imageUrl || null;
+
+  if (
+    senderId &&
+    mongoose.Types.ObjectId.isValid(senderId)
+  ) {
+    const sender = await User.findById(senderId)
+      .select("name firstName lastName profileUrl")
+      .lean();
+
+    if (sender) {
+      const senderName = getUserDisplayName(sender);
+
+      finalData.senderId = sender._id.toString();
+      finalData.senderName = senderName;
+      finalData.senderProfileUrl =
+        sender.profileUrl || "";
+
+      finalImageUrl =
+        finalImageUrl ||
+        sender.profileUrl ||
+        null;
+    }
+  }
+
+  return {
+    data: finalData,
+    imageUrl: finalImageUrl,
+  };
+}
+
 async function createNotificationService(body) {
   try {
     const {
@@ -22,6 +73,7 @@ async function createNotificationService(body) {
       type = "GENERAL",
       data = {},
       imageUrl = null,
+      senderId = null,
     } = body;
 
     if (!userId) {
@@ -36,13 +88,20 @@ async function createNotificationService(body) {
       return buildResponse(DataConstant.BAD_REQUEST, "message is required");
     }
 
+    const senderPayload =
+      await buildNotificationSenderPayload({
+        senderId,
+        data,
+        imageUrl,
+      });
+
     const notification = await Notification.create({
       userId,
       title,
       message,
       type,
-      data,
-      imageUrl,
+      data: senderPayload.data,
+      imageUrl: senderPayload.imageUrl,
       sentStatus: "PENDING",
     });
 
@@ -75,6 +134,7 @@ async function sendNotificationToUserService(body) {
       type = "GENERAL",
       data = {},
       imageUrl = null,
+      senderId = null,
     } = body;
 
     if (!userId) {
@@ -134,14 +194,21 @@ async function sendNotificationToUserService(body) {
       `Creating notification record for user ${userId}`
     );
 
+    const senderPayload =
+      await buildNotificationSenderPayload({
+        senderId,
+        data,
+        imageUrl,
+      });
+
     const notification =
       await Notification.create({
         userId,
         title,
         message,
         type,
-        data,
-        imageUrl,
+        data: senderPayload.data,
+        imageUrl: senderPayload.imageUrl,
         sentStatus: "PENDING",
       });
 
@@ -181,10 +248,10 @@ const payload = {
     body: message,
   },
 
-  data: {
+    data: {
     notificationId: notification._id.toString(),
     type,
-    ...convertDataToString(data),
+    ...convertDataToString(senderPayload.data),
   },
 
   android: {
@@ -213,19 +280,19 @@ const payload = {
   tokens,
 };
 
-if (imageUrl) {
-  payload.notification.imageUrl = imageUrl;
+if (senderPayload.imageUrl) {
+  payload.notification.imageUrl = senderPayload.imageUrl;
 
-  payload.android.notification.imageUrl = imageUrl;
+  payload.android.notification.imageUrl = senderPayload.imageUrl;
 
   payload.apns.fcmOptions = {
-    imageUrl,
+    imageUrl: senderPayload.imageUrl,
   };
 }
 
-    if (imageUrl) {
+    if (senderPayload.imageUrl) {
       payload.notification.imageUrl =
-        imageUrl;
+        senderPayload.imageUrl;
     }
 
     logger.info(
@@ -339,6 +406,7 @@ async function sendNotificationToAllService(body) {
       type = "GENERAL",
       data = {},
       imageUrl = null,
+      senderId = null,
     } = body;
 
     if (!title || !message) {
@@ -359,6 +427,13 @@ async function sendNotificationToAllService(body) {
 
     const userIds = users.map((u) => u._id);
 
+    const senderPayload =
+      await buildNotificationSenderPayload({
+        senderId,
+        data,
+        imageUrl,
+      });
+
     const devices = await UserDevice.find({
       userId: { $in: userIds },
       status: 1,
@@ -371,8 +446,8 @@ async function sendNotificationToAllService(body) {
         title,
         message,
         type,
-        data,
-        imageUrl,
+        data: senderPayload.data,
+        imageUrl: senderPayload.imageUrl,
         sentStatus: "PENDING",
       }))
     );
@@ -405,13 +480,13 @@ async function sendNotificationToAllService(body) {
       },
       data: {
         type,
-        ...convertDataToString(data),
+        ...convertDataToString(senderPayload.data),
       },
       tokens,
     };
 
-    if (imageUrl) {
-      payload.notification.imageUrl = imageUrl;
+    if (senderPayload.imageUrl) {
+      payload.notification.imageUrl = senderPayload.imageUrl;
     }
 
     const firebaseResponse =

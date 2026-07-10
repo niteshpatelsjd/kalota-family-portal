@@ -110,6 +110,7 @@ async function sendExpenseCreatedVillageNotifications({
       users.map((user) =>
         sendNotificationToUserService({
           userId: user._id,
+          senderId: createdBy,
           title: "New expense created",
           message: `${creatorName} created an expense of ₹${Number(
             expense.amount || 0

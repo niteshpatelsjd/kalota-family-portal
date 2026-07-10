@@ -31,6 +31,7 @@ async function sendDonationNotification({
   title,
   message,
   type,
+  senderId = null,
   extraData = {},
 }) {
   try {
@@ -46,6 +47,7 @@ async function sendDonationNotification({
 
     await sendNotificationToUserService({
       userId: donation.donorUserId,
+      senderId,
       title,
       message,
       type,
@@ -501,6 +503,7 @@ async function createDonation(body, userId) {
         title: "Donation created",
         message: buildDonationCreatedMessage(savedDonation),
         type: "DONATION_CREATED",
+        senderId: userId,
         extraData: {
           createdBy: userId ? userId.toString() : "",
           collectionStatus: savedDonation.collectionStatus || "",
@@ -866,6 +869,7 @@ async function depositCashDonation(body, file) {
       title: "Donation deposited",
       message: buildDonationDepositMessage(donation),
       type: "DONATION_DEPOSITED",
+      senderId: updatedBy,
       extraData: {
         bankAccountId: bankAccountId ? bankAccountId.toString() : "",
         referenceNumber: referenceNumber || "",
@@ -1099,6 +1103,7 @@ async function verifyItemDonation(body) {
       title: "Item donation updated",
       message: buildItemVerificationMessage(donation),
       type: "ITEM_DONATION_VERIFIED",
+      senderId: updatedBy,
       extraData: {
         receivedQuantity: String(donation.receivedQuantity || 0),
         verifiedBy: updatedBy ? updatedBy.toString() : "",

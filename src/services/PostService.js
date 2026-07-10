@@ -156,6 +156,7 @@ async function sendPostCreatedVillageNotifications({ post, creatorId }) {
       users.map((user) =>
         sendNotificationToUserService({
           userId: user._id,
+          senderId: creatorId,
           title:
             post.type === "EVENT"
               ? "New event in your village"
@@ -1435,6 +1436,7 @@ async function likeUnlikePostService(body, loggedInUserId) {
 
         await sendNotificationToUserService({
           userId: postOwnerId,
+          senderId: loggedInUserId,
           title: "New like on your post",
           message: `${likerName} liked your post`,
           type: "LIKE",
