@@ -1234,8 +1234,88 @@ async function getFeedService(query) {
       }, {});
     }
 
+    let latestLikedUsersMap = {};
     let likedPostIds = [];
     let ownerSocialMap = {};
+
+    if (postIds.length > 0) {
+      logger.info("Fetching latest liked users started");
+
+      const latestLikes = await PostLike.aggregate([
+        {
+          $match: {
+            postId: { $in: postIds },
+            status: 1,
+            ...(blockedViewerIds.length
+              ? {
+                  userId: {
+                    $nin: blockedViewerIds,
+                  },
+                }
+              : {}),
+          },
+        },
+        { $sort: { updatedAt: -1, createdAt: -1 } },
+        {
+          $group: {
+            _id: "$postId",
+            likes: { $push: "$$ROOT" },
+          },
+        },
+        {
+          $project: {
+            likes: { $slice: ["$likes", 3] },
+          },
+        },
+      ]);
+
+      logger.info(`latestLikes aggregate count: ${latestLikes.length}`);
+
+      const likedUserIds = [
+        ...new Set(
+          latestLikes
+            .flatMap((item) => item.likes || [])
+            .map((like) => like.userId?.toString())
+            .filter(Boolean)
+        ),
+      ];
+
+      const likedUsers = await User.find({
+        _id: { $in: likedUserIds },
+      })
+        .select("_id name firstName lastName profileUrl")
+        .lean();
+
+      const likedUsersMap = likedUsers.reduce((result, user) => {
+        result[user._id.toString()] = user;
+        return result;
+      }, {});
+
+      latestLikedUsersMap = latestLikes.reduce((result, item) => {
+        const postId = item._id.toString();
+
+        result[postId] = (item.likes || [])
+          .map((like) => {
+            const user = likedUsersMap[like.userId?.toString()];
+
+            if (!user) {
+              logger.warn(
+                `Liked user not found. postId: ${postId}, userId: ${like.userId}`
+              );
+              return null;
+            }
+
+            return {
+              id: user._id,
+              name: getUserDisplayName(user),
+              profileUrl: user.profileUrl || null,
+            };
+          })
+          .filter(Boolean);
+
+        return result;
+      }, {});
+    }
 
     if (loggedInUserId && postIds.length > 0) {
       const likes = await PostLike.find({
@@ -1297,9 +1377,14 @@ async function getFeedService(query) {
       );
 
       response.latestViewers = latestViewersMap[postId] || [];
+      response.latestLikedUsers = latestLikedUsersMap[postId] || [];
+      response.latestLikedUser =
+        response.latestLikedUsers.length > 0
+          ? response.latestLikedUsers[0]
+          : null;
 
       logger.info(
-        `final response postId: ${postId}, latestViewers count: ${response.latestViewers.length}`
+        `final response postId: ${postId}, latestViewers count: ${response.latestViewers.length}, latestLikedUsers count: ${response.latestLikedUsers.length}`
       );
 
       return response;
