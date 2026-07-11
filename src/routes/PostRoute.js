@@ -456,7 +456,7 @@ router.get(
  * @swagger
  * /admin/post/sharePost:
  *   post:
- *     summary: Increase post share count
+ *     summary: Share post and increase count only once per unique share pair
  *     tags: [Post]
  *     security:
  *       - bearerAuth: []
@@ -472,9 +472,13 @@ router.get(
  *               postId:
  *                 type: string
  *                 example: 6853ac3e6c6f4e00123abcd9
+ *               sharedToUserId:
+ *                 type: string
+ *                 description: Optional user id receiving the shared post. A->B and B->A are counted once for the same post. Self-share does not increase count.
+ *                 example: 6853ac3e6c6f4e00123abce1
  *     responses:
  *       200:
- *         description: Post shared successfully
+ *         description: Post shared successfully or already counted
  */
 router.post(
   "/sharePost",

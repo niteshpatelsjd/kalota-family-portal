@@ -3,6 +3,7 @@ const Post = require("../models/Post");
 const PostLike = require("../models/PostLike");
 const PostComment = require("../models/PostComment");
 const PostView = require("../models/PostView");
+const PostShare = require("../models/PostShare");
 const User = require("../models/User");
 const UserFollow = require("../models/UserFollow");
 const buildResponse = require("../utils/response");
@@ -112,6 +113,19 @@ function getUserDisplayName(user) {
     `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
     "Someone"
   );
+}
+
+function getShareKey(postId, sharedByUserId, sharedToUserId = null) {
+  if (sharedToUserId) {
+    const participantIds = [
+      sharedByUserId.toString(),
+      sharedToUserId.toString(),
+    ].sort();
+
+    return `${postId.toString()}:DIRECT:${participantIds[0]}:${participantIds[1]}`;
+  }
+
+  return `${postId.toString()}:USER:${sharedByUserId.toString()}`;
 }
 
 async function sendPostCreatedVillageNotifications({ post, creatorId }) {
@@ -1796,7 +1810,14 @@ async function viewPostService(body, loggedInUserId) {
 
 async function sharePostService(body, loggedInUserId) {
   try {
-    const { postId } = body;
+    const {
+      postId,
+      sharedToUserId,
+      toUserId,
+      receiverUserId,
+    } = body;
+    const targetUserId =
+      sharedToUserId || toUserId || receiverUserId || null;
 
     if (!postId) {
       return buildResponse(
@@ -1805,8 +1826,25 @@ async function sharePostService(body, loggedInUserId) {
       );
     }
 
+    if (!loggedInUserId) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "userId is required"
+      );
+    }
+
+    if (
+      targetUserId &&
+      !mongoose.Types.ObjectId.isValid(targetUserId)
+    ) {
+      return buildResponse(
+        DataConstant.CLIENT_ERROR.BAD_REQUEST,
+        "Valid sharedToUserId is required"
+      );
+    }
+
     const visiblePost =
-      await validatePostVisible(
+      await validatePostBlockOnly(
         postId,
         loggedInUserId
       );
@@ -1815,14 +1853,90 @@ async function sharePostService(body, loggedInUserId) {
       return visiblePost.response;
     }
 
-    await Post.updateOne(
-      { _id: postId },
-      { $inc: { shareCount: 1 } }
+    if (
+      targetUserId &&
+      targetUserId.toString() === loggedInUserId.toString()
+    ) {
+      return buildResponse(
+        DataConstant.SUCCESS.OK,
+        "Post share already counted",
+        {
+          isNewShare: false,
+          shareCountIncreased: false,
+        }
+      );
+    }
+
+    if (targetUserId) {
+      const targetUser = await User.findOne({
+        _id: targetUserId,
+        status: 1,
+      }).select("_id");
+
+      if (!targetUser) {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.NOT_FOUND,
+          "Shared user not found"
+        );
+      }
+
+      const blockState =
+        await visibilityService.getBlockBetween(
+          loggedInUserId,
+          targetUserId
+        );
+
+      if (blockState.isBlocked) {
+        return buildResponse(
+          DataConstant.CLIENT_ERROR.FORBIDDEN,
+          "You are not allowed to share with this user",
+          {
+            reason: blockState.blockedByMe
+              ? "BLOCKED_BY_ME"
+              : "BLOCKED_ME",
+          }
+        );
+      }
+    }
+
+    const shareKey = getShareKey(
+      postId,
+      loggedInUserId,
+      targetUserId
     );
+    let isNewShare = false;
+
+    try {
+      await PostShare.create({
+        postId,
+        sharedByUserId: loggedInUserId,
+        sharedToUserId: targetUserId,
+        shareKey,
+      });
+
+      isNewShare = true;
+    } catch (shareErr) {
+      if (shareErr?.code !== 11000) {
+        throw shareErr;
+      }
+    }
+
+    if (isNewShare) {
+      await Post.updateOne(
+        { _id: postId },
+        { $inc: { shareCount: 1 } }
+      );
+    }
 
     return buildResponse(
       DataConstant.SUCCESS.OK,
-      "Post shared successfully"
+      isNewShare
+        ? "Post shared successfully"
+        : "Post share already counted",
+      {
+        isNewShare,
+        shareCountIncreased: isNewShare,
+      }
     );
   } catch (error) {
     logger.error("sharePostService error", error);
