@@ -1345,7 +1345,7 @@ async function likeUnlikePostService(body, loggedInUserId) {
     }
 
     const visiblePost =
-      await validatePostVisible(
+      await validatePostBlockOnly(
         postId,
         loggedInUserId
       );
@@ -1496,7 +1496,7 @@ async function addCommentService(body, loggedInUserId) {
     }
 
     const visiblePost =
-      await validatePostVisible(
+      await validatePostBlockOnly(
         postId,
         loggedInUserId
       );
@@ -1504,6 +1504,8 @@ async function addCommentService(body, loggedInUserId) {
     if (!visiblePost.allowed) {
       return visiblePost.response;
     }
+
+    const post = visiblePost.post;
 
     const newComment = await PostComment.create({
       postId,
@@ -1516,6 +1518,39 @@ async function addCommentService(body, loggedInUserId) {
       { _id: postId },
       { $inc: { commentCount: 1 } }
     );
+
+    if (
+      post?.userId &&
+      loggedInUserId &&
+      post.userId.toString() !== loggedInUserId.toString()
+    ) {
+      try {
+        const commenter = await User.findById(loggedInUserId)
+          .select("name firstName lastName")
+          .lean();
+        const commenterName = getUserDisplayName(commenter);
+
+        await sendNotificationToUserService({
+          userId: post.userId,
+          senderId: loggedInUserId,
+          title: "New comment on your post",
+          message: `${commenterName} commented on your post`,
+          type: "COMMENT",
+          data: {
+            postId: postId.toString(),
+            commentId: newComment._id.toString(),
+            commentedBy: loggedInUserId.toString(),
+            postTitle: post.title || "",
+            comment: String(comment || "").slice(0, 120),
+          },
+        });
+      } catch (notificationErr) {
+        logger.error(
+          `Comment notification failed: ${notificationErr.message}`,
+          notificationErr
+        );
+      }
+    }
 
     return buildResponse(
       DataConstant.SUCCESS.OK,
