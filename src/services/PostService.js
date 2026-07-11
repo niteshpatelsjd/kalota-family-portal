@@ -1681,31 +1681,105 @@ async function getCommentsService(query) {
       `Final comments count after pagination: ${finalComments.length}`
     );
 
-    const content = finalComments.map(
-      (item) => ({
-        id: item._id,
-        comment: item.comment,
-
-        userResponse: item.userId
-          ? {
-              id: item.userId._id,
-              name: item.userId.name,
-              profileUrl:
-                item.userId.profileUrl || null,
-              villageName:
-                item.userId.villageId?.name ||
-                "",
-              districtName:
-                item.userId.districtId?.name ||
-                "",
-            }
-          : null,
-
-        createdAt: formatDate(
-          item.createdAt
-        ),
-      })
+    const parentCommentIds = finalComments.map(
+      (item) => item._id
     );
+
+    const replyFilter = {
+      postId,
+      status: 1,
+      parentCommentId: {
+        $in: parentCommentIds,
+      },
+    };
+
+    if (blockedUserIds.length > 0) {
+      replyFilter.userId = {
+        $nin: blockedUserIds,
+      };
+    }
+
+    const replies = parentCommentIds.length
+      ? await PostComment.find(replyFilter)
+          .sort({ createdAt: 1 })
+          .populate({
+            path: "userId",
+            select:
+              "name profileUrl districtId villageId",
+            populate: [
+              {
+                path: "districtId",
+                select: "name",
+              },
+              {
+                path: "villageId",
+                select: "name",
+              },
+            ],
+          })
+          .lean()
+      : [];
+
+    const mapCommentResponse = (item) => ({
+      id: item._id,
+      comment: item.comment,
+      parentCommentId:
+        item.parentCommentId || null,
+
+      userResponse: item.userId
+        ? {
+            id: item.userId._id,
+            name: item.userId.name,
+            profileUrl:
+              item.userId.profileUrl || null,
+            villageName:
+              item.userId.villageId?.name ||
+              "",
+            districtName:
+              item.userId.districtId?.name ||
+              "",
+          }
+        : null,
+
+      createdAt: formatDate(
+        item.createdAt
+      ),
+    });
+
+    const repliesByParentId = replies.reduce(
+      (result, reply) => {
+        const parentId =
+          reply.parentCommentId?.toString();
+
+        if (!parentId) return result;
+
+        if (!result[parentId]) {
+          result[parentId] = [];
+        }
+
+        result[parentId].push(
+          mapCommentResponse(reply)
+        );
+
+        return result;
+      },
+      {}
+    );
+
+    const content = finalComments.map((item) => {
+      const commentResponse =
+        mapCommentResponse(item);
+      const commentReplies =
+        repliesByParentId[
+          item._id.toString()
+        ] || [];
+
+      return {
+        ...commentResponse,
+        replies: commentReplies,
+        replyCount: commentReplies.length,
+      };
+    });
 
     logger.info(
       `Mapped comments count: ${content.length}`

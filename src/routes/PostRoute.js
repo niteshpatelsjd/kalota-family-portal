@@ -417,7 +417,7 @@ router.post("/viewPost", viewPost);
  *   get:
  *     summary: Get post comments
  *     tags: [Post]
- *     description: Returns comments for a post. This API does not require follow/private-profile access; it only blocks access or filters users based on block relationships.
+ *     description: Returns top-level comments with child replies for a post. This API does not require follow/private-profile access; it only blocks access or filters users based on block relationships.
  *     security:
  *       - bearerAuth: []
  *     parameters:
