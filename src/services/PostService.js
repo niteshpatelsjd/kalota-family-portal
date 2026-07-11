@@ -1241,15 +1241,23 @@ async function getFeedService(query) {
     if (postIds.length > 0) {
       logger.info("Fetching latest liked users started");
 
+      const excludedLikedUserIds = [
+        ...blockedViewerIds,
+        ...(loggedInUserId &&
+        mongoose.Types.ObjectId.isValid(loggedInUserId)
+          ? [new mongoose.Types.ObjectId(loggedInUserId)]
+          : []),
+      ];
+
       const latestLikes = await PostLike.aggregate([
         {
           $match: {
             postId: { $in: postIds },
             status: 1,
-            ...(blockedViewerIds.length
+            ...(excludedLikedUserIds.length
               ? {
                   userId: {
-                    $nin: blockedViewerIds,
+                    $nin: excludedLikedUserIds,
                   },
                 }
               : {}),
