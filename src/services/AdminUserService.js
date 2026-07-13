@@ -805,6 +805,151 @@ async function logout(token) {
   }
 }
 
+function getPortalContactDetails() {
+  return {
+    email:
+      process.env.CONTACT_EMAIL ||
+      process.env.SUPPORT_EMAIL ||
+      "contactus@kalotacommunityapp.com",
+    phone:
+      process.env.CONTACT_PHONE ||
+      "",
+    address:
+      process.env.CONTACT_ADDRESS ||
+      "",
+  };
+}
+
+function buildForgotPasswordEmailTemplate({
+  title,
+  greetingName,
+  message,
+  otp,
+  actionUrl,
+  actionText,
+  validityText,
+}) {
+  const contact =
+    getPortalContactDetails();
+
+  const currentYear =
+    new Date().getFullYear();
+
+  const contactPhoneHtml =
+    contact.phone
+      ? `<div style="margin-top:4px;">Phone: <a href="tel:${contact.phone}" style="color:#8b1e3f;text-decoration:none;">${contact.phone}</a></div>`
+      : "";
+
+  const contactAddressHtml =
+    contact.address
+      ? `<div style="margin-top:4px;">${contact.address}</div>`
+      : "";
+
+  const otpHtml =
+    otp
+      ? `
+        <div style="margin:28px 0;text-align:center;">
+          <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;font-weight:700;margin-bottom:10px;">
+            Your verification code
+          </div>
+          <div style="display:inline-block;background:#fff7f9;border:1px solid #f4c7d3;border-radius:16px;padding:18px 28px;font-size:34px;line-height:1;font-weight:800;letter-spacing:8px;color:#0f172a;">
+            ${otp}
+          </div>
+        </div>
+      `
+      : "";
+
+  const actionHtml =
+    actionUrl
+      ? `
+        <div style="margin:28px 0;text-align:center;">
+          <a href="${actionUrl}" style="display:inline-block;background:#8b1e3f;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 28px;border-radius:999px;box-shadow:0 10px 24px rgba(139,30,63,0.24);">
+            ${actionText || "Reset Password"}
+          </a>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-top:18px;">
+          <div style="font-size:13px;color:#64748b;margin-bottom:8px;">If the button does not work, copy and paste this link into your browser:</div>
+          <a href="${actionUrl}" style="font-size:13px;color:#8b1e3f;word-break:break-all;text-decoration:none;">${actionUrl}</a>
+        </div>
+      `
+      : "";
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>${title}</title>
+      </head>
+      <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f5f9;margin:0;padding:32px 16px;">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border-radius:24px;overflow:hidden;box-shadow:0 20px 50px rgba(15,23,42,0.10);">
+                <tr>
+                  <td style="background:linear-gradient(135deg,#4a1026 0%,#8b1e3f 58%,#b9405f 100%);padding:34px 32px;color:#ffffff;">
+                    <div style="font-size:13px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;opacity:0.86;">
+                      Kalota Family Community Portal
+                    </div>
+                    <h1 style="margin:12px 0 0;font-size:28px;line-height:1.25;font-weight:800;">
+                      ${title}
+                    </h1>
+                    <p style="margin:12px 0 0;font-size:15px;line-height:1.7;color:#fde2e9;">
+                      Secure account assistance for your community portal.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:34px 32px 28px;">
+                    <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#334155;">
+                      Hello ${greetingName || "Admin"},
+                    </p>
+                    <p style="margin:0;font-size:16px;line-height:1.7;color:#334155;">
+                      ${message}
+                    </p>
+
+                    ${otpHtml}
+                    ${actionHtml}
+
+                    <div style="margin-top:26px;background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;padding:16px 18px;">
+                      <div style="font-size:14px;font-weight:800;color:#9a3412;margin-bottom:6px;">
+                        Security note
+                      </div>
+                      <div style="font-size:14px;line-height:1.7;color:#7c2d12;">
+                        ${validityText} Please do not share this email, code, or link with anyone. If you did not request this password reset, you can safely ignore this message.
+                      </div>
+                    </div>
+
+                    <div style="margin-top:26px;border-top:1px solid #e2e8f0;padding-top:22px;">
+                      <div style="font-size:14px;font-weight:800;color:#0f172a;margin-bottom:8px;">
+                        Contact us
+                      </div>
+                      <div style="font-size:14px;line-height:1.7;color:#475569;">
+                        Need help? Contact the Kalota Family Community Portal support team.
+                        <div style="margin-top:4px;">Email: <a href="mailto:${contact.email}" style="color:#8b1e3f;text-decoration:none;">${contact.email}</a></div>
+                        ${contactPhoneHtml}
+                        ${contactAddressHtml}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
+                    <div style="font-size:12px;line-height:1.6;color:#64748b;">
+                      © ${currentYear} Kalota Family Community Portal. All rights reserved.
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+}
+
 async function forgotPasswordOtp(data) {
   try {
 
@@ -853,16 +998,16 @@ async function forgotPasswordOtp(data) {
       // Send Email
     await mailUtil.sendMail(
       email,
-      "Reset Password OTP",
-      `
-      <h2>Password Reset OTP</h2>
-
-      <p>Your OTP is:</p>
-
-      <h1>${otp}</h1>
-
-      <p>OTP valid for 10 minutes.</p>
-      `
+      "Kalota Family Community Portal - Password Reset OTP",
+      buildForgotPasswordEmailTemplate({
+        title: "Password Reset OTP",
+        greetingName: user.name,
+        message:
+          "We received a request to reset the password for your admin account. Use the verification code below to continue.",
+        otp,
+        validityText:
+          "This OTP is valid for 10 minutes.",
+      })
     );
 
     }catch(err){
@@ -1027,18 +1172,17 @@ async function forgotPasswordLink(data) {
             // Send Email
     await mailUtil.sendMail(
       user.email,
-      "Reset Password Link",
-      `
-      <h2>Reset Password</h2>
-
-      <p>Click below link to reset password:</p>
-
-      <a href="${resetLink}">
-        Reset Password
-      </a>
-
-      <p>Link valid for 30 minutes.</p>
-      `
+      "Kalota Family Community Portal - Reset Your Password",
+      buildForgotPasswordEmailTemplate({
+        title: "Reset Your Password",
+        greetingName: user.name,
+        message:
+          "We received a request to reset the password for your admin account. Click the secure button below to create a new password.",
+        actionUrl: resetLink,
+        actionText: "Reset Password",
+        validityText:
+          "This reset link is valid for 30 minutes.",
+      })
     );
       }catch(err){
         logger.error("Exception occurs while sending forgot password link mail.")
