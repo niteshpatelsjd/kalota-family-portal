@@ -1011,7 +1011,14 @@ async function forgotPasswordOtp(data) {
     );
 
     }catch(err){
-      logger.error('Exception occurs while sending the mail');
+      logger.error(
+        "Exception occurs while sending forgot password OTP mail",
+        {
+          error: err.message,
+          stack: err.stack,
+          email,
+        }
+      );
     }
 
     
@@ -1185,7 +1192,14 @@ async function forgotPasswordLink(data) {
       })
     );
       }catch(err){
-        logger.error("Exception occurs while sending forgot password link mail.")
+        logger.error(
+          "Exception occurs while sending forgot password link mail",
+          {
+            error: err.message,
+            stack: err.stack,
+            email: user.email,
+          }
+        );
       }
 
     return buildResponse(
