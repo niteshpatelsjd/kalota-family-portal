@@ -76,7 +76,11 @@ const upload = multer({ storage });
  *
  *               linkedPersonId:
  *                 type: string
- *                 description: Required for SPOUSE relation
+ *                 description: For SPOUSE, this is spouse target member. For SON/DAUGHTER/GRANDSON/GRANDDAUGHTER, this is parent member.
+ *
+ *               spousePersonId:
+ *                 type: string
+ *                 description: Optional spouse target for child/grandchild when maritalStatus is MARRIED, WIDOW, or WIDOWER.
  *
  *               nativeFamilyRefId:
  *                 type: string

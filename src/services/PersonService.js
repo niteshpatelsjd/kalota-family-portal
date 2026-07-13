@@ -126,6 +126,7 @@ async function createMemberProfileService(
       relationType,
       villageId,
       linkedPersonId,
+      spousePersonId,
     } = body;
 
     /*
@@ -225,7 +226,9 @@ async function createMemberProfileService(
     const linkedRelations = [
       "SPOUSE",
       "SISTER",
+      "SON",
       "DAUGHTER",
+      "GRANDSON",
       "GRANDDAUGHTER",
     ];
 
@@ -263,6 +266,33 @@ async function createMemberProfileService(
         return buildResponse(
           DataConstant.NOT_FOUND,
           "Linked person not found"
+        );
+      }
+    }
+
+    let spousePerson =
+      null;
+
+    if (
+      spousePersonId
+    ) {
+
+      spousePerson =
+        await getPersonById(
+          spousePersonId
+        );
+
+      if (
+        !spousePerson
+      ) {
+
+        logger.warn(
+          "Spouse person not found"
+        );
+
+        return buildResponse(
+          DataConstant.NOT_FOUND,
+          "Spouse person not found"
         );
       }
     }
@@ -454,6 +484,7 @@ if (file) {
       "fatherId",
       "motherId",
       "linkedPersonId",
+      "spousePersonId",
       "nativeFamilyRefId",
       "marriedFamilyRefId",
     ].forEach((key) => {
@@ -467,6 +498,8 @@ if (file) {
         delete payload[key];
       }
     });
+
+    delete payload.spousePersonId;
 
     /*
      * Remove Empty Enums
@@ -503,65 +536,57 @@ if (file) {
     /*
      * Update Relationships
      */
+    if (relationType === "FATHER") {
 
-    if (
-      relationType ===
-      "FATHER"
-    ) {
-
-      logger.info(
-        "Updating father relation"
-      );
+      logger.info("Updating father relation");
 
       await updatePerson(
         head._id,
-        {
-          fatherId:
-            member._id,
-        },
+        { fatherId: member._id },
         session
       );
     }
 
-    if (
-      relationType ===
-      "MOTHER"
-    ) {
+    if (relationType === "MOTHER") {
 
-      logger.info(
-        "Updating mother relation"
-      );
+      logger.info("Updating mother relation");
 
       await updatePerson(
         head._id,
-        {
-          motherId:
-            member._id,
-        },
+        { motherId: member._id },
         session
       );
     }
 
-    /*
-     * SPOUSE Relation
-     */
+    const spouseLinkStatuses = [
+      "MARRIED",
+      "WIDOW",
+      "WIDOWER",
+    ];
+    const canLinkSpouseFromSpousePersonId =
+      spouseLinkStatuses.includes(
+        member.maritalStatus
+      );
+    const spouseTargetPersonId =
+      relationType === "SPOUSE"
+        ? linkedPersonId
+        : canLinkSpouseFromSpousePersonId
+          ? spousePersonId
+          : null;
 
     if (
-      relationType ===
-        "SPOUSE" &&
-      linkedPersonId
+      spouseTargetPersonId &&
+      spouseTargetPersonId.toString() !==
+        member._id.toString()
     ) {
 
-      logger.info(
-        "Updating spouse relation"
-      );
+      logger.info("Updating spouse relation");
 
       await updatePerson(
-        linkedPersonId,
+        spouseTargetPersonId,
         {
-          $push: {
-            spouseIds:
-              member._id,
+          $addToSet: {
+            spouseIds: member._id,
           },
         },
         session
@@ -570,34 +595,43 @@ if (file) {
       await updatePerson(
         member._id,
         {
-          spouseIds: [
-            linkedPersonId,
-          ],
+          $addToSet: {
+            spouseIds: spouseTargetPersonId,
+          },
         },
         session
       );
     }
 
-    /*
-     * SISTER Relation
-     */
+    const childRelationTypes = [
+      "SON",
+      "DAUGHTER",
+      "GRANDSON",
+      "GRANDDAUGHTER",
+    ];
 
     if (
-      relationType ===
-        "SISTER" &&
-      linkedPersonId
+      childRelationTypes.includes(relationType) &&
+      linkedPerson
     ) {
 
-      logger.info(
-        "Updating sister spouse relation"
-      );
+      logger.info("Updating parent-child relation");
+
+      const memberParentUpdate = {};
+
+      if (linkedPerson.gender === "FEMALE") {
+        memberParentUpdate.motherId =
+          linkedPerson._id;
+      } else {
+        memberParentUpdate.fatherId =
+          linkedPerson._id;
+      }
 
       await updatePerson(
-        linkedPersonId,
+        linkedPerson._id,
         {
-          $push: {
-            spouseIds:
-              member._id,
+          $addToSet: {
+            childrenIds: member._id,
           },
         },
         session
@@ -605,83 +639,7 @@ if (file) {
 
       await updatePerson(
         member._id,
-        {
-          spouseIds: [
-            linkedPersonId,
-          ],
-        },
-        session
-      );
-    }
-
-    /*
-     * DAUGHTER Relation
-     */
-
-    if (
-      relationType ===
-        "DAUGHTER" &&
-      linkedPersonId
-    ) {
-
-      logger.info(
-        "Updating daughter spouse relation"
-      );
-
-      await updatePerson(
-        linkedPersonId,
-        {
-          $push: {
-            spouseIds:
-              member._id,
-          },
-        },
-        session
-      );
-
-      await updatePerson(
-        member._id,
-        {
-          spouseIds: [
-            linkedPersonId,
-          ],
-        },
-        session
-      );
-    }
-
-    /*
-     * GRANDDAUGHTER Relation
-     */
-
-    if (
-      relationType ===
-        "GRANDDAUGHTER" &&
-      linkedPersonId
-    ) {
-
-      logger.info(
-        "Updating granddaughter spouse relation"
-      );
-
-      await updatePerson(
-        linkedPersonId,
-        {
-          $push: {
-            spouseIds:
-              member._id,
-          },
-        },
-        session
-      );
-
-      await updatePerson(
-        member._id,
-        {
-          spouseIds: [
-            linkedPersonId,
-          ],
-        },
+        memberParentUpdate,
         session
       );
     }
