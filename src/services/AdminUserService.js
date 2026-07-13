@@ -12,6 +12,7 @@ const userSessionRepo = require("../repositories/UserSessionRepository");
 const bcrypt = require("bcryptjs");
 const mailUtil = require("../utils/mailUtil");
 const crypto = require("crypto");
+const mongoose = require("mongoose");
 const redisClient = require("../config/RedisConfig");
 const User = require("../models/User");
 const uploadToCloudinary =
@@ -1130,11 +1131,158 @@ async function resetPasswordUsingLink(data) {
   }
 }
 
+async function changePassword(data) {
+  try {
+    const {
+      id,
+      existingPassword,
+      newPassword,
+    } = data;
+
+    if (!id) {
+      return buildResponse(
+        400,
+        "id is required",
+        null
+      );
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return buildResponse(
+        400,
+        "Invalid id",
+        null
+      );
+    }
+
+    if (!existingPassword) {
+      return buildResponse(
+        400,
+        "existingPassword is required",
+        null
+      );
+    }
+
+    if (!newPassword) {
+      return buildResponse(
+        400,
+        "newPassword is required",
+        null
+      );
+    }
+
+    const trimmedExistingPassword =
+      String(existingPassword).trim();
+    const trimmedNewPassword =
+      String(newPassword).trim();
+
+    if (!trimmedExistingPassword) {
+      return buildResponse(
+        400,
+        "existingPassword cannot be empty",
+        null
+      );
+    }
+
+    if (!trimmedNewPassword) {
+      return buildResponse(
+        400,
+        "newPassword cannot be empty",
+        null
+      );
+    }
+
+    if (trimmedExistingPassword === trimmedNewPassword) {
+      return buildResponse(
+        400,
+        "newPassword must be different from existingPassword",
+        null
+      );
+    }
+
+    if (trimmedNewPassword.length < 6) {
+      return buildResponse(
+        400,
+        "newPassword must be at least 6 characters",
+        null
+      );
+    }
+
+    const user =
+      await AdminUser.findById(
+        id
+      );
+
+    if (!user) {
+      return buildResponse(
+        404,
+        "Admin user not found",
+        null
+      );
+    }
+
+    if (user.status === 2) {
+      return buildResponse(
+        403,
+        "Your account is inactive. Please contact admin.",
+        null
+      );
+    }
+
+    const isOldPasswordValid =
+      await bcrypt.compare(
+        trimmedExistingPassword,
+        user.password
+      );
+
+    if (!isOldPasswordValid) {
+      return buildResponse(
+        401,
+        "existingPassword is incorrect",
+        null
+      );
+    }
+
+    const salt =
+      await bcrypt.genSalt(10);
+
+    user.password =
+      await bcrypt.hash(
+        trimmedNewPassword,
+        salt
+      );
+    user.updatedAt = new Date();
+
+    await user.save();
+
+    return buildResponse(
+      200,
+      "Password changed successfully",
+      null
+    );
+  } catch (err) {
+    logger.error("changePassword error", {
+      error: err.message,
+      stack: err.stack,
+      request: {
+        id: data?.id,
+      },
+    });
+
+    return buildResponse(
+      500,
+      err.message,
+      null
+    );
+  }
+}
+
 module.exports = {
   forgotPasswordOtp,
   resetPasswordWithOtp,
   forgotPasswordLink,
   resetPasswordUsingLink,
+  changePassword,
   addAdmin,
   findByCountryCodeAndMobileNumber,
   getProfile,

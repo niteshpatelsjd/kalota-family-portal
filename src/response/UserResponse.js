@@ -1,4 +1,15 @@
 // utils/userResponse.js
+function buildLocationResponse(location) {
+  if (!location || !location._id) return null;
+
+  return {
+    id: location._id,
+    name: location.name || "",
+    latitude: location.latitude ?? null,
+    longitude: location.longitude ?? null,
+  };
+}
+
 function buildUserResponse(user) {
 
   if (!user) return null;
@@ -60,6 +71,9 @@ function buildUserResponse(user) {
       user.districtId?.name ||
       "",
 
+    districtResponse:
+      buildLocationResponse(user.districtId),
+
     tehsilId:
       user.tehsilId?._id ||
       user.tehsilId ||
@@ -69,6 +83,9 @@ function buildUserResponse(user) {
       user.tehsilId?.name ||
       "",
 
+    tehsilResponse:
+      buildLocationResponse(user.tehsilId),
+
     villageId:
       user.villageId?._id ||
       user.villageId ||
@@ -77,6 +94,9 @@ function buildUserResponse(user) {
     villageName:
       user.villageId?.name ||
       "",
+
+    villageResponse:
+      buildLocationResponse(user.villageId),
 
     // Profile
 

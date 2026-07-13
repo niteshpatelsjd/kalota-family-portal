@@ -299,6 +299,48 @@ router.post(
   ctrl.resetPasswordUsingLink
 );
 
+/**
+ * @openapi
+ * /admin/user/change-password:
+ *   post:
+ *     tags: [Admin User Controller]
+ *     summary: Change admin user password
+ *     description: Changes password after validating the existing password.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - id
+ *               - existingPassword
+ *               - newPassword
+ *             properties:
+ *               id:
+ *                 type: string
+ *                 example: "6867f56f8e2f123456789abc"
+ *               existingPassword:
+ *                 type: string
+ *                 example: "Old@123"
+ *               newPassword:
+ *                 type: string
+ *                 example: "New@123"
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Existing password is incorrect
+ *       404:
+ *         description: Admin user not found
+ */
+router.post(
+  "/change-password",
+  ctrl.changePassword
+);
+
 
 /**
  * @openapi

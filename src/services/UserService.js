@@ -935,15 +935,15 @@ async function getProfile(id, viewerId = null) {
       await User.findById(id)
         .populate(
           "districtId",
-          "name"
+          "name latitude longitude"
         )
         .populate(
           "tehsilId",
-          "name"
+          "name latitude longitude"
         )
         .populate(
           "villageId",
-          "name"
+          "name latitude longitude"
         );
 
     if (!user) {
@@ -978,8 +978,43 @@ async function getProfile(id, viewerId = null) {
           profileUrl: user.profileUrl || "",
           districtName:
             user.districtId?.name || "",
+          districtResponse:
+            user.districtId?._id
+              ? {
+                  id: user.districtId._id,
+                  name: user.districtId.name || "",
+                  latitude:
+                    user.districtId.latitude ?? null,
+                  longitude:
+                    user.districtId.longitude ?? null,
+                }
+              : null,
+          tehsilName:
+            user.tehsilId?.name || "",
+          tehsilResponse:
+            user.tehsilId?._id
+              ? {
+                  id: user.tehsilId._id,
+                  name: user.tehsilId.name || "",
+                  latitude:
+                    user.tehsilId.latitude ?? null,
+                  longitude:
+                    user.tehsilId.longitude ?? null,
+                }
+              : null,
           villageName:
             user.villageId?.name || "",
+          villageResponse:
+            user.villageId?._id
+              ? {
+                  id: user.villageId._id,
+                  name: user.villageId.name || "",
+                  latitude:
+                    user.villageId.latitude ?? null,
+                  longitude:
+                    user.villageId.longitude ?? null,
+                }
+              : null,
           isPrivate: true,
           canViewFullProfile: false,
           followStatus:

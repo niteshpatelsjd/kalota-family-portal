@@ -129,6 +129,27 @@ exports.resetPasswordUsingLink = async (req, res) => {
   }
 };
 
+exports.changePassword = async (req, res) => {
+  try {
+    const result =
+      await adminUserService.changePassword({
+        ...req.body
+      });
+
+    res.status(200).json(result);
+  } catch (err) {
+    logger.error("changePassword controller error", {
+      error: err.message,
+      stack: err.stack,
+    });
+
+    res.status(200).json({
+      responseCode: 500,
+      message: err.message
+    });
+  }
+};
+
 // 🔹 Request OTP
 exports.requestOtp = async (req, res) => {
   const { mobileNumber, countryCode } = req.body || {};
