@@ -494,7 +494,14 @@ async function verifyOtp(
     }
 
     const committeeAccess =
-  await getCommitteeAccessByMobileUserId(user._id);
+      await getCommitteeAccessByMobileUserId(user._id);
+
+    const actualFamilyHeadId =
+      await getActualFamilyHeadUserId(user);
+
+    const responseUser =
+      userResponse.buildUserResponse(user);
+
     return buildResponse(
   200,
   "OTP verified successfully",
@@ -502,7 +509,10 @@ async function verifyOtp(
     isRegistered: true,
     accessToken: token,
     user: {
-      ...userResponse.buildUserResponse(user),
+      ...responseUser,
+      id: user._id?.toString(),
+      familyId: user.familyId || "",
+      familyHeadId: actualFamilyHeadId,
       committeeAccess,
     },
   }
@@ -519,6 +529,33 @@ async function verifyOtp(
       null
     );
   }
+}
+
+async function getActualFamilyHeadUserId(user) {
+  if (!user) return "";
+
+  if (user.relationType === "HEAD") {
+    return user._id?.toString();
+  }
+
+  if (!user.familyId) {
+    return user.familyHeadId?.toString?.() || "";
+  }
+
+  const familyHeadUser =
+    await User.findOne({
+      familyId: user.familyId,
+      relationType: "HEAD",
+      status: {
+        $in: [1, 2],
+      },
+    }).select("_id");
+
+  return (
+    familyHeadUser?._id?.toString() ||
+    user.familyHeadId?.toString?.() ||
+    ""
+  );
 }
 
 async function logout(token) {
