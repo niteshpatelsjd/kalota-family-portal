@@ -369,10 +369,10 @@ router.get(
  *     parameters:
  *       - in: query
  *         name: userId
- *         required: true
+ *         required: false
  *         schema:
  *           type: string
- *         description: User whose followers are being fetched
+ *         description: Optional user whose followers are being fetched. If omitted, viewerId/logged-in user is used.
  *         example: 6853ac3e6c6f4e00123abcd2
  *       - in: query
  *         name: viewerId
@@ -409,10 +409,10 @@ router.get(
  *     parameters:
  *       - in: query
  *         name: userId
- *         required: true
+ *         required: false
  *         schema:
  *           type: string
- *         description: User whose following list is being fetched
+ *         description: Optional user whose following list is being fetched. If omitted, viewerId/logged-in user is used.
  *         example: 6853ac3e6c6f4e00123abcd2
  *       - in: query
  *         name: viewerId

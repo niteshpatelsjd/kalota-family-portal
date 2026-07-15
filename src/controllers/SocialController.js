@@ -19,13 +19,23 @@ exports.getFollowRequests = async (req, res) => {
 };
 
 exports.getFollowers = async (req, res) => {
-  const response = await socialService.getFollowers(req.query);
+  const response = await socialService.getFollowers({
+    ...req.query,
+    loggedInUserId:
+      req.user?._id ||
+      req.user?.id,
+  });
 
   return res.status(response.responseCode || 200).json(response);
 };
 
 exports.getFollowing = async (req, res) => {
-  const response = await socialService.getFollowing(req.query);
+  const response = await socialService.getFollowing({
+    ...req.query,
+    loggedInUserId:
+      req.user?._id ||
+      req.user?.id,
+  });
 
   return res.status(response.responseCode || 200).json(response);
 };

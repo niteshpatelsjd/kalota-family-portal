@@ -483,20 +483,36 @@ async function getFollowRequests({
   }
 }
 
-async function getFollowers({ userId, viewerId, pageIndex = 0, pageSize = 20 }) {
+async function getFollowers({
+  userId,
+  viewerId,
+  loggedInUserId,
+  pageIndex = 0,
+  pageSize = 20,
+}) {
   try {
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
+    const targetUserId =
+      userId ||
+      viewerId ||
+      loggedInUserId;
+
+    const resolvedViewerId =
+      viewerId ||
+      loggedInUserId ||
+      targetUserId;
+
+    if (!mongoose.Types.ObjectId.isValid(targetUserId)) {
       return buildResponse(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
-        "Valid userId is required",
+        "Valid userId or viewerId is required",
         null
       );
     }
 
     const { page, limit, skip } = parsePagination(pageIndex, pageSize);
-    const blockedUserIds = await visibilityService.getBlockedUserIds(viewerId);
+    const blockedUserIds = await visibilityService.getBlockedUserIds(resolvedViewerId);
     const query = {
-      followingId: userId,
+      followingId: targetUserId,
       status: 1,
       ...(blockedUserIds.length
         ? { followerId: { $nin: blockedUserIds } }
@@ -518,13 +534,13 @@ async function getFollowers({ userId, viewerId, pageIndex = 0, pageSize = 20 }) 
         .limit(limit)
         .lean(),
       UserFollow.countDocuments(query),
-      visibilityService.getFollowCounts(userId),
+      visibilityService.getFollowCounts(targetUserId),
     ]);
 
     const content = await Promise.all(
       followers
         .filter((item) => item.followerId)
-        .map((item) => buildUserCard(item.followerId, viewerId || userId))
+        .map((item) => buildUserCard(item.followerId, resolvedViewerId))
     );
 
     return buildResponse(DataConstant.SUCCESS.OK, "Followers fetched successfully", {
@@ -544,26 +560,43 @@ async function getFollowers({ userId, viewerId, pageIndex = 0, pageSize = 20 }) 
       stack: error.stack,
       userId,
       viewerId,
+      loggedInUserId,
     });
 
     return buildResponse(DataConstant.SERVER_ERROR.SERVER_ERROR, "Something went wrong", null);
   }
 }
 
-async function getFollowing({ userId, viewerId, pageIndex = 0, pageSize = 20 }) {
+async function getFollowing({
+  userId,
+  viewerId,
+  loggedInUserId,
+  pageIndex = 0,
+  pageSize = 20,
+}) {
   try {
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
+    const targetUserId =
+      userId ||
+      viewerId ||
+      loggedInUserId;
+
+    const resolvedViewerId =
+      viewerId ||
+      loggedInUserId ||
+      targetUserId;
+
+    if (!mongoose.Types.ObjectId.isValid(targetUserId)) {
       return buildResponse(
         DataConstant.CLIENT_ERROR.BAD_REQUEST,
-        "Valid userId is required",
+        "Valid userId or viewerId is required",
         null
       );
     }
 
     const { page, limit, skip } = parsePagination(pageIndex, pageSize);
-    const blockedUserIds = await visibilityService.getBlockedUserIds(viewerId);
+    const blockedUserIds = await visibilityService.getBlockedUserIds(resolvedViewerId);
     const query = {
-      followerId: userId,
+      followerId: targetUserId,
       status: 1,
       ...(blockedUserIds.length
         ? { followingId: { $nin: blockedUserIds } }
@@ -585,13 +618,13 @@ async function getFollowing({ userId, viewerId, pageIndex = 0, pageSize = 20 }) 
         .limit(limit)
         .lean(),
       UserFollow.countDocuments(query),
-      visibilityService.getFollowCounts(userId),
+      visibilityService.getFollowCounts(targetUserId),
     ]);
 
     const content = await Promise.all(
       following
         .filter((item) => item.followingId)
-        .map((item) => buildUserCard(item.followingId, viewerId || userId))
+        .map((item) => buildUserCard(item.followingId, resolvedViewerId))
     );
 
     return buildResponse(DataConstant.SUCCESS.OK, "Following fetched successfully", {
@@ -611,6 +644,7 @@ async function getFollowing({ userId, viewerId, pageIndex = 0, pageSize = 20 }) 
       stack: error.stack,
       userId,
       viewerId,
+      loggedInUserId,
     });
 
     return buildResponse(DataConstant.SERVER_ERROR.SERVER_ERROR, "Something went wrong", null);
