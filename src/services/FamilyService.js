@@ -1095,9 +1095,12 @@ async function getFamilyProfileById(familyId) {
         ) {
 
           const spouse =
-            await Person.findById(
-              member.spouseIds[0]
-            );
+            await Person.findOne({
+              _id: member.spouseIds[0],
+              status: {
+                $in: [1, 2],
+              },
+            });
 
           if (spouse) {
 

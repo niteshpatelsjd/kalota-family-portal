@@ -16,6 +16,9 @@ async function findFamilyByFamilyId(
 
   return await Family.findOne({
     familyId,
+    status: {
+      $in: [1, 2],
+    },
   });
 }
 

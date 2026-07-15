@@ -43,7 +43,9 @@ async function getPersonById(
 
   return await Person.findOne({
     _id: personId,
-    status: 1,
+    status: {
+      $in: [1, 2],
+    },
   });
 }
 
@@ -55,7 +57,9 @@ async function getPersonsByFamilyId(
 
   return await Person.find({
     familyId,
-    status: 1,
+    status: {
+      $in: [1, 2],
+    },
   }).sort({
     createdAt: 1,
   });
@@ -70,7 +74,9 @@ async function getHeadPersonByFamilyId(
   return await Person.findOne({
     familyId,
     relationType: "HEAD",
-    status: 1,
+    status: {
+      $in: [1, 2],
+    },
   });
 }
 
