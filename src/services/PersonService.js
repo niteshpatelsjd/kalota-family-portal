@@ -1363,10 +1363,139 @@ const response =
   }
 }
 
+async function blockUnblockPersonService(
+  id,
+  status
+) {
+  try {
+    logger.info(
+      "blockUnblockPersonService called id=%s status=%s",
+      id,
+      status
+    );
+
+    if (!id) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "id is required",
+        null
+      );
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Invalid id",
+        null
+      );
+    }
+
+    if (
+      status === undefined ||
+      status === null ||
+      status === ""
+    ) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "status is required",
+        null
+      );
+    }
+
+    const numericStatus =
+      Number(status);
+
+    if (![0, 1, 2].includes(numericStatus)) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "status must be 0, 1 or 2",
+        null
+      );
+    }
+
+    const person =
+      await getPersonById(id);
+
+    if (!person) {
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        "Record not found.",
+        null
+      );
+    }
+
+    if (person.status === numericStatus) {
+      if (numericStatus === 1) {
+        return buildResponse(
+          DataConstant.BAD_REQUEST,
+          "Person already active.",
+          null
+        );
+      }
+
+      if (numericStatus === 2) {
+        return buildResponse(
+          DataConstant.BAD_REQUEST,
+          "Person already inactive.",
+          null
+        );
+      }
+
+      if (numericStatus === 0) {
+        return buildResponse(
+          DataConstant.BAD_REQUEST,
+          "Person already deleted.",
+          null
+        );
+      }
+    }
+
+    person.status = numericStatus;
+    await person.save();
+
+    let message =
+      "Person status updated successfully.";
+
+    if (numericStatus === 0) {
+      message =
+        "Person deleted successfully.";
+    }
+
+    if (numericStatus === 1) {
+      message =
+        "Person activated successfully.";
+    }
+
+    if (numericStatus === 2) {
+      message =
+        "Person deactivated successfully.";
+    }
+
+    return buildResponse(
+      DataConstant.OK,
+      message,
+      person
+    );
+  } catch (error) {
+    logger.error(
+      "Error in blockUnblockPersonService: %s",
+      error.stack ||
+        error.message
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      DataConstant.SERVER_MESSAGE,
+      null
+    );
+  }
+}
+
 module.exports = {
   createMemberProfileService,
   updateProfileService,
   getProfileByIdService,
   deleteProfileService,
   getPersonsByFamilyIdService,
+  blockUnblockPersonService,
 };

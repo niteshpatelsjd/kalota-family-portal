@@ -1463,10 +1463,136 @@ async function getAllFamilies(
     );
   }
 }
+
+async function blockUnblockFamily(id, status) {
+  try {
+    logger.info(
+      "blockUnblockFamily called id=%s status=%s",
+      id,
+      status
+    );
+
+    if (!id) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "id is required",
+        null
+      );
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Invalid id",
+        null
+      );
+    }
+
+    if (
+      status === undefined ||
+      status === null ||
+      status === ""
+    ) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "status is required",
+        null
+      );
+    }
+
+    const numericStatus =
+      Number(status);
+
+    if (![0, 1, 2].includes(numericStatus)) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "status must be 0, 1 or 2",
+        null
+      );
+    }
+
+    const family =
+      await Family.findById(id);
+
+    if (!family) {
+      return buildResponse(
+        DataConstant.NOT_FOUND,
+        "Record not found.",
+        null
+      );
+    }
+
+    if (family.status === numericStatus) {
+      if (numericStatus === 1) {
+        return buildResponse(
+          DataConstant.BAD_REQUEST,
+          "Family already active.",
+          null
+        );
+      }
+
+      if (numericStatus === 2) {
+        return buildResponse(
+          DataConstant.BAD_REQUEST,
+          "Family already inactive.",
+          null
+        );
+      }
+
+      if (numericStatus === 0) {
+        return buildResponse(
+          DataConstant.BAD_REQUEST,
+          "Family already deleted.",
+          null
+        );
+      }
+    }
+
+    family.status = numericStatus;
+    await family.save();
+
+    let message =
+      "Family status updated successfully.";
+
+    if (numericStatus === 0) {
+      message =
+        "Family deleted successfully.";
+    }
+
+    if (numericStatus === 1) {
+      message =
+        "Family activated successfully.";
+    }
+
+    if (numericStatus === 2) {
+      message =
+        "Family deactivated successfully.";
+    }
+
+    return buildResponse(
+      DataConstant.OK,
+      message,
+      family
+    );
+  } catch (err) {
+    logger.error(
+      "Error in blockUnblockFamily: %s",
+      err.stack || err.message
+    );
+
+    return buildResponse(
+      DataConstant.SERVER_ERROR,
+      DataConstant.SERVER_MESSAGE,
+      null
+    );
+  }
+}
+
 module.exports = {
   createOrUpdateFamilyHead,
   createFamilyHead,
   checkDuplicateFamily,
   getFamilyProfileById,
   getAllFamilies,
+  blockUnblockFamily,
 };

@@ -408,5 +408,42 @@ router.get(
   personController.getPersonsByFamily
 );
 
+/**
+ * @openapi
+ * /admin/person/blockUnblock:
+ *   post:
+ *     tags: [Person Controller]
+ *     summary: Block, unblock or delete person
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - id
+ *               - status
+ *             properties:
+ *               id:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd9
+ *               status:
+ *                 type: integer
+ *                 enum: [0, 1, 2]
+ *                 description: 0 = Deleted, 1 = Active, 2 = Inactive/Blocked
+ *                 example: 2
+ *     responses:
+ *       200:
+ *         description: Person status updated successfully
+ *       400:
+ *         description: Invalid request
+ *       404:
+ *         description: Person not found
+ */
+router.post(
+  "/blockUnblock",
+  personController.blockUnblockPerson
+);
+
 module.exports =
   router;

@@ -361,4 +361,42 @@ router.get(
   "/getAllFamilies",
   familyController.getAllFamilies
 );
+
+/**
+ * @openapi
+ * /admin/family/blockUnblock:
+ *   post:
+ *     tags: [Family Controller]
+ *     summary: Block, unblock or delete family
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - id
+ *               - status
+ *             properties:
+ *               id:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd9
+ *               status:
+ *                 type: integer
+ *                 enum: [0, 1, 2]
+ *                 description: 0 = Deleted, 1 = Active, 2 = Inactive/Blocked
+ *                 example: 2
+ *     responses:
+ *       200:
+ *         description: Family status updated successfully
+ *       400:
+ *         description: Invalid request
+ *       404:
+ *         description: Family not found
+ */
+router.post(
+  "/blockUnblock",
+  familyController.blockUnblockFamily
+);
+
 module.exports = router;

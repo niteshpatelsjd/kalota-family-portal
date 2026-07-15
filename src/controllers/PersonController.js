@@ -185,6 +185,33 @@ async function getPersonsByFamily(
   }
 }
 
+async function blockUnblockPerson(
+  req,
+  res
+) {
+  try {
+    const { id, status } =
+      req.body;
+
+    const response =
+      await PersonService.blockUnblockPersonService(
+        id,
+        status
+      );
+
+    return res
+      .status(
+        response.responseCode
+      )
+      .json(response);
+  } catch (err) {
+    return res.status(500).json({
+      responseCode: 500,
+      message: err.message,
+    });
+  }
+}
+
 
 module.exports = {
   createMemberProfile,
@@ -192,4 +219,5 @@ module.exports = {
   deleteProfile,
   getProfileById,
   getPersonsByFamily,
+  blockUnblockPerson,
 };

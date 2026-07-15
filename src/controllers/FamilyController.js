@@ -145,6 +145,36 @@ async function getAllFamilies(
   }
 }
 
+async function blockUnblockFamily(
+  req,
+  res
+) {
+  try {
+    const { id, status } =
+      req.body;
+
+    const response =
+      await FamilyService.blockUnblockFamily(
+        id,
+        status
+      );
+
+    return res
+      .status(response.responseCode)
+      .json(response);
+  } catch (err) {
+    logger.error(
+      "Error in blockUnblockFamily controller: %s",
+      err.stack || err.message
+    );
+
+    return res.status(500).json({
+      responseCode: 500,
+      message: err.message,
+    });
+  }
+}
+
 
 module.exports = {
   getAllFamilies,
@@ -152,4 +182,5 @@ module.exports = {
   checkDuplicateFamily,
   getFamilyProfileById,
   createOrUpdateFamilyHead,
+  blockUnblockFamily,
 };
