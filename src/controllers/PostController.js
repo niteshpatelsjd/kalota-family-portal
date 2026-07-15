@@ -10,6 +10,10 @@ const {
   sharePostService,
   getLikersService,
   getViewersService,
+  getAllPostService,
+  blockUnblockPostService,
+  reportPostService,
+  getAllReportService,
 } = require("../services/PostService");
 
 async function createPost(req, res) {
@@ -179,6 +183,42 @@ async function sharePost(req, res) {
   return res.status(200).json(response);
 }
 
+async function getAllPost(req, res) {
+  const response =
+    await getAllPostService(req.query);
+
+  return res
+    .status(response.responseCode || 200)
+    .json(response);
+}
+
+async function blockUnblockPost(req, res) {
+  const response =
+    await blockUnblockPostService(req.body);
+
+  return res
+    .status(response.responseCode || 200)
+    .json(response);
+}
+
+async function reportPost(req, res) {
+  const response =
+    await reportPostService(req.body);
+
+  return res
+    .status(response.responseCode || 200)
+    .json(response);
+}
+
+async function getAllReport(req, res) {
+  const response =
+    await getAllReportService(req.query);
+
+  return res
+    .status(response.responseCode || 200)
+    .json(response);
+}
+
 module.exports = {
   createPost,
   getFeed,
@@ -188,6 +228,10 @@ module.exports = {
   viewPost,
   getLikers,
   getViewers,
+  getAllPost,
+  blockUnblockPost,
+  reportPost,
+  getAllReport,
   sharePost,
   editPost,
   deletePost,

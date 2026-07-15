@@ -4,6 +4,7 @@ const PostLike = require("../models/PostLike");
 const PostComment = require("../models/PostComment");
 const PostView = require("../models/PostView");
 const PostShare = require("../models/PostShare");
+const ReportSpam = require("../models/ReportSpam");
 const User = require("../models/User");
 const UserFollow = require("../models/UserFollow");
 const buildResponse = require("../utils/response");
@@ -52,6 +53,41 @@ function formatDate(date) {
   )}-${d.getFullYear()} ${pad(d.getHours())}:${pad(
     d.getMinutes()
   )}:${pad(d.getSeconds())}`;
+}
+
+function parseDateOnly(dateStr, endOfDay = false) {
+  if (!dateStr) return null;
+
+  const [day, month, year] =
+    String(dateStr).split("-");
+
+  if (!day || !month || !year) {
+    return null;
+  }
+
+  const date = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    endOfDay ? 23 : 0,
+    endOfDay ? 59 : 0,
+    endOfDay ? 59 : 0,
+    endOfDay ? 999 : 0
+  );
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  if (
+    date.getFullYear() !== Number(year) ||
+    date.getMonth() !== Number(month) - 1 ||
+    date.getDate() !== Number(day)
+  ) {
+    return null;
+  }
+
+  return date;
 }
 
 function mapPostResponse(post, loggedInUserId = null, ownerSocialMap = {}) {
@@ -2115,6 +2151,677 @@ async function sharePostService(body, loggedInUserId) {
   }
 }
 
+async function getAllPostService(query) {
+  try {
+    const {
+      userId,
+      startDate,
+      endDate,
+      type,
+      searchText,
+      status,
+      pageIndex = 0,
+      pageSize = 10,
+    } = query;
+
+    const page =
+      Math.max(Number(pageIndex) || 0, 0);
+    const limit =
+      Math.max(Number(pageSize) || 10, 1);
+
+    const filter = {};
+
+    if (userId) {
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return buildResponse(
+          400,
+          "Invalid userId",
+          null
+        );
+      }
+
+      filter.userId = userId;
+    }
+
+    if (type) {
+      const upperType =
+        String(type).toUpperCase();
+
+      if (!["POST", "EVENT"].includes(upperType)) {
+        return buildResponse(
+          400,
+          "type must be POST or EVENT",
+          null
+        );
+      }
+
+      filter.type = upperType;
+    }
+
+    if (
+      status !== undefined &&
+      status !== null &&
+      status !== ""
+    ) {
+      const numericStatus = Number(status);
+
+      if (![0, 1, 2].includes(numericStatus)) {
+        return buildResponse(
+          400,
+          "status must be 0, 1 or 2",
+          null
+        );
+      }
+
+      filter.status = numericStatus;
+    }
+
+    const dateFilter = {};
+
+    if (startDate) {
+      const parsedStartDate =
+        parseDateOnly(startDate);
+
+      if (!parsedStartDate) {
+        return buildResponse(
+          400,
+          "startDate must be in dd-MM-yyyy format",
+          null
+        );
+      }
+
+      dateFilter.$gte = parsedStartDate;
+    }
+
+    if (endDate) {
+      const parsedEndDate =
+        parseDateOnly(endDate, true);
+
+      if (!parsedEndDate) {
+        return buildResponse(
+          400,
+          "endDate must be in dd-MM-yyyy format",
+          null
+        );
+      }
+
+      dateFilter.$lte = parsedEndDate;
+    }
+
+    if (Object.keys(dateFilter).length) {
+      filter.createdAt = dateFilter;
+    }
+
+    if (searchText) {
+      const regex =
+        new RegExp(String(searchText).trim(), "i");
+
+      const matchedUsers =
+        await User.find({
+          $or: [
+            { name: regex },
+            { firstName: regex },
+            { lastName: regex },
+            { mobileNumber: regex },
+          ],
+        })
+          .select("_id")
+          .lean();
+
+      filter.$or = [
+        { title: regex },
+        { description: regex },
+      ];
+
+      if (matchedUsers.length) {
+        filter.$or.push({
+          userId: {
+            $in: matchedUsers.map(
+              (item) => item._id
+            ),
+          },
+        });
+      }
+    }
+
+    const [posts, totalRecords] =
+      await Promise.all([
+        Post.find(filter)
+          .populate({
+            path: "userId",
+            select:
+              "name firstName lastName profileUrl villageId districtId",
+            populate: [
+              {
+                path: "villageId",
+                select: "name",
+              },
+              {
+                path: "districtId",
+                select: "name",
+              },
+            ],
+          })
+          .populate(
+            "dharamshalaId",
+            "name bannerImage address type"
+          )
+          .sort({ createdAt: -1 })
+          .skip(page * limit)
+          .limit(limit)
+          .lean(),
+        Post.countDocuments(filter),
+      ]);
+
+    const content =
+      posts.map((post) =>
+        mapPostResponse(post)
+      );
+
+    const totalPages =
+      Math.ceil(totalRecords / limit);
+
+    return buildResponse(
+      200,
+      "Posts fetched successfully",
+      {
+        content,
+        pageIndex: page,
+        pageSize: limit,
+        totalRecords,
+        totalPages,
+        isLast: page + 1 >= totalPages,
+        hasNext: page + 1 < totalPages,
+        hasPrevious: page > 0,
+      }
+    );
+  } catch (error) {
+    logger.error("getAllPostService error", {
+      error: error.message,
+      stack: error.stack,
+      query,
+    });
+
+    return buildResponse(
+      500,
+      "Internal Server Error",
+      null
+    );
+  }
+}
+
+async function blockUnblockPostService(body) {
+  try {
+    const { id, status } = body;
+
+    if (!id) {
+      return buildResponse(
+        400,
+        "id is required",
+        null
+      );
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return buildResponse(
+        400,
+        "Invalid id",
+        null
+      );
+    }
+
+    if (
+      status === undefined ||
+      status === null ||
+      status === ""
+    ) {
+      return buildResponse(
+        400,
+        "status is required",
+        null
+      );
+    }
+
+    const numericStatus = Number(status);
+
+    if (![0, 1, 2].includes(numericStatus)) {
+      return buildResponse(
+        400,
+        "status must be 0, 1 or 2",
+        null
+      );
+    }
+
+    const post =
+      await Post.findById(id);
+
+    if (!post) {
+      return buildResponse(
+        404,
+        "Record not found.",
+        null
+      );
+    }
+
+    if (post.status === numericStatus) {
+      if (numericStatus === 1) {
+        return buildResponse(
+          400,
+          "Post already active.",
+          null
+        );
+      }
+
+      if (numericStatus === 2) {
+        return buildResponse(
+          400,
+          "Post already blocked.",
+          null
+        );
+      }
+
+      if (numericStatus === 0) {
+        return buildResponse(
+          400,
+          "Post already deleted.",
+          null
+        );
+      }
+    }
+
+    post.status = numericStatus;
+    await post.save();
+
+    const populatedPost =
+      await Post.findById(id)
+        .populate({
+          path: "userId",
+          select:
+            "name firstName lastName profileUrl villageId districtId",
+          populate: [
+            {
+              path: "villageId",
+              select: "name",
+            },
+            {
+              path: "districtId",
+              select: "name",
+            },
+          ],
+        })
+        .populate(
+          "dharamshalaId",
+          "name bannerImage address type"
+        );
+
+    let message = "Post status updated successfully.";
+    if (numericStatus === 0) {
+      message = "Post deleted successfully.";
+    }
+    if (numericStatus === 1) {
+      message = "Post activated successfully.";
+    }
+    if (numericStatus === 2) {
+      message = "Post blocked successfully.";
+    }
+
+    return buildResponse(
+      200,
+      message,
+      mapPostResponse(populatedPost)
+    );
+  } catch (error) {
+    logger.error("blockUnblockPostService error", {
+      error: error.message,
+      stack: error.stack,
+      body,
+    });
+
+    return buildResponse(
+      500,
+      "Internal Server Error",
+      null
+    );
+  }
+}
+
+async function reportPostService(body) {
+  try {
+    const {
+      feedId,
+      issueType,
+      descriptions = "",
+      userId,
+      feedType,
+      status = 1,
+      reportStatus = 1,
+    } = body;
+
+    if (!feedId) {
+      return buildResponse(
+        400,
+        "feedId is required",
+        null
+      );
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(feedId)) {
+      return buildResponse(
+        400,
+        "Invalid feedId",
+        null
+      );
+    }
+
+    if (!userId) {
+      return buildResponse(
+        400,
+        "userId is required",
+        null
+      );
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return buildResponse(
+        400,
+        "Invalid userId",
+        null
+      );
+    }
+
+    if (!issueType || !String(issueType).trim()) {
+      return buildResponse(
+        400,
+        "issueType is required",
+        null
+      );
+    }
+
+    const normalizedFeedType =
+      String(feedType || "").toLowerCase() === "post"
+        ? "Post"
+        : String(feedType || "").toLowerCase() === "comment"
+          ? "Comment"
+          : "";
+
+    if (!normalizedFeedType) {
+      return buildResponse(
+        400,
+        "feedType must be Post or Comment",
+        null
+      );
+    }
+
+    const numericStatus = Number(status);
+    const numericReportStatus =
+      Number(reportStatus);
+
+    if (![0, 1, 2].includes(numericStatus)) {
+      return buildResponse(
+        400,
+        "status must be 0, 1 or 2",
+        null
+      );
+    }
+
+    if (![1, 2, 3].includes(numericReportStatus)) {
+      return buildResponse(
+        400,
+        "reportStatus must be 1, 2 or 3",
+        null
+      );
+    }
+
+    const feedModel =
+      normalizedFeedType === "Post"
+        ? "post"
+        : "post_comment";
+
+    const existingFeed =
+      normalizedFeedType === "Post"
+        ? await Post.findById(feedId)
+        : await PostComment.findById(feedId);
+
+    if (!existingFeed) {
+      return buildResponse(
+        404,
+        `${normalizedFeedType} not found`,
+        null
+      );
+    }
+
+    const reportingUser =
+      await User.findById(userId).select("_id");
+
+    if (!reportingUser) {
+      return buildResponse(
+        404,
+        "User not found",
+        null
+      );
+    }
+
+    const report =
+      await ReportSpam.create({
+        feedId,
+        feedModel,
+        feedType: normalizedFeedType,
+        issueType: String(issueType).trim(),
+        descriptions,
+        userId,
+        status: numericStatus,
+        reportStatus: numericReportStatus,
+      });
+
+    return buildResponse(
+      200,
+      "Report submitted successfully",
+      report
+    );
+  } catch (error) {
+    logger.error("reportPostService error", {
+      error: error.message,
+      stack: error.stack,
+      body,
+    });
+
+    return buildResponse(
+      500,
+      "Internal Server Error",
+      null
+    );
+  }
+}
+
+async function getAllReportService(query) {
+  try {
+    const {
+      userId,
+      feedId,
+      feedType,
+      status,
+      reportStatus,
+      searchText,
+      pageIndex = 0,
+      pageSize = 10,
+    } = query;
+
+    const page =
+      Math.max(Number(pageIndex) || 0, 0);
+    const limit =
+      Math.max(Number(pageSize) || 10, 1);
+
+    const filter = {};
+
+    if (userId) {
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return buildResponse(
+          400,
+          "Invalid userId",
+          null
+        );
+      }
+
+      filter.userId = userId;
+    }
+
+    if (feedId) {
+      if (!mongoose.Types.ObjectId.isValid(feedId)) {
+        return buildResponse(
+          400,
+          "Invalid feedId",
+          null
+        );
+      }
+
+      filter.feedId = feedId;
+    }
+
+    if (feedType) {
+      const normalizedFeedType =
+        String(feedType).toLowerCase() === "post"
+          ? "Post"
+          : String(feedType).toLowerCase() === "comment"
+            ? "Comment"
+            : "";
+
+      if (!normalizedFeedType) {
+        return buildResponse(
+          400,
+          "feedType must be Post or Comment",
+          null
+        );
+      }
+
+      filter.feedType = normalizedFeedType;
+    }
+
+    if (
+      status !== undefined &&
+      status !== null &&
+      status !== ""
+    ) {
+      const numericStatus = Number(status);
+
+      if (![0, 1, 2].includes(numericStatus)) {
+        return buildResponse(
+          400,
+          "status must be 0, 1 or 2",
+          null
+        );
+      }
+
+      filter.status = numericStatus;
+    }
+
+    if (
+      reportStatus !== undefined &&
+      reportStatus !== null &&
+      reportStatus !== ""
+    ) {
+      const numericReportStatus =
+        Number(reportStatus);
+
+      if (![1, 2, 3].includes(numericReportStatus)) {
+        return buildResponse(
+          400,
+          "reportStatus must be 1, 2 or 3",
+          null
+        );
+      }
+
+      filter.reportStatus =
+        numericReportStatus;
+    }
+
+    if (searchText) {
+      const regex =
+        new RegExp(String(searchText).trim(), "i");
+
+      filter.$or = [
+        { issueType: regex },
+        { descriptions: regex },
+      ];
+    }
+
+    const [reports, totalRecords] =
+      await Promise.all([
+        ReportSpam.find(filter)
+          .populate(
+            "userId",
+            "name firstName lastName mobileNumber profileUrl"
+          )
+          .populate("feedId")
+          .sort({ createdAt: -1 })
+          .skip(page * limit)
+          .limit(limit)
+          .lean(),
+        ReportSpam.countDocuments(filter),
+      ]);
+
+    const content =
+      reports.map((item) => ({
+        id: item._id,
+        feedId: item.feedId?._id || item.feedId,
+        feedType: item.feedType,
+        issueType: item.issueType,
+        descriptions: item.descriptions || "",
+        status: item.status,
+        reportStatus: item.reportStatus,
+        reportStatusLabel:
+          item.reportStatus === 1
+            ? "Pending"
+            : item.reportStatus === 2
+              ? "Open"
+              : "Closed",
+        userResponse: item.userId
+          ? {
+              id: item.userId._id,
+              name:
+                getUserDisplayName(item.userId),
+              mobileNumber:
+                item.userId.mobileNumber || "",
+              profileUrl:
+                item.userId.profileUrl || null,
+            }
+          : null,
+        feedResponse: item.feedId || null,
+        createdAt: formatDate(item.createdAt),
+        updatedAt: formatDate(item.updatedAt),
+      }));
+
+    const totalPages =
+      Math.ceil(totalRecords / limit);
+
+    return buildResponse(
+      200,
+      "Reports fetched successfully",
+      {
+        content,
+        pageIndex: page,
+        pageSize: limit,
+        totalRecords,
+        totalPages,
+        isLast: page + 1 >= totalPages,
+        hasNext: page + 1 < totalPages,
+        hasPrevious: page > 0,
+      }
+    );
+  } catch (error) {
+    logger.error("getAllReportService error", {
+      error: error.message,
+      stack: error.stack,
+      query,
+    });
+
+    return buildResponse(
+      500,
+      "Internal Server Error",
+      null
+    );
+  }
+}
+
 module.exports = {
   createPostService,
   getFeedService,
@@ -2127,4 +2834,8 @@ module.exports = {
   deletePostService,
   getLikersService,
   getViewersService,
+  getAllPostService,
+  blockUnblockPostService,
+  reportPostService,
+  getAllReportService,
 };

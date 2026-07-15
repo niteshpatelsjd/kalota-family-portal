@@ -39,7 +39,11 @@ const {
   viewPost,
   sharePost,
   editPost,
-  deletePost
+  deletePost,
+  getAllPost,
+  blockUnblockPost,
+  reportPost,
+  getAllReport
 } = require("../controllers/PostController");
 
 /**
@@ -315,6 +319,98 @@ router.get(
   "/getFeed",
   getFeed
 );
+
+/**
+ * @swagger
+ * /admin/post/getAllPost:
+ *   get:
+ *     summary: Get all posts/events for admin listing
+ *     tags: [Post]
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *         description: Optional post owner user id
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           example: 01-07-2026
+ *         description: Filter from created date, format dd-MM-yyyy
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           example: 15-07-2026
+ *         description: Filter to created date, format dd-MM-yyyy
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [POST, EVENT]
+ *       - in: query
+ *         name: searchText
+ *         schema:
+ *           type: string
+ *         description: Search by title, description, user name or mobile number
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: integer
+ *           enum: [0, 1, 2]
+ *         description: 0 deleted, 1 active, 2 blocked
+ *       - in: query
+ *         name: pageIndex
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Posts fetched successfully
+ */
+router.get(
+  "/getAllPost",
+  getAllPost
+);
+
+/**
+ * @swagger
+ * /admin/post/blockUnblock:
+ *   post:
+ *     summary: Block/unblock/delete post
+ *     tags: [Post]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - id
+ *               - status
+ *             properties:
+ *               id:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd9
+ *               status:
+ *                 type: integer
+ *                 enum: [0, 1, 2]
+ *                 description: 0 deleted, 1 active, 2 blocked
+ *                 example: 2
+ *     responses:
+ *       200:
+ *         description: Post status updated successfully
+ */
+router.post(
+  "/blockUnblock",
+  blockUnblockPost
+);
   
   
 
@@ -484,6 +580,115 @@ router.post(
   "/sharePost",
   
   sharePost
+);
+
+/**
+ * @swagger
+ * /admin/post/reportPost:
+ *   post:
+ *     summary: Report a post or comment
+ *     tags: [Post]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - feedId
+ *               - issueType
+ *               - userId
+ *               - feedType
+ *             properties:
+ *               feedId:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd9
+ *               issueType:
+ *                 type: string
+ *                 example: SPAM
+ *               descriptions:
+ *                 type: string
+ *                 example: This content is inappropriate.
+ *               userId:
+ *                 type: string
+ *                 description: User who reported the post/comment
+ *                 example: 6853ac3e6c6f4e00123abcd1
+ *               feedType:
+ *                 type: string
+ *                 enum: [Post, Comment]
+ *                 example: Post
+ *               status:
+ *                 type: integer
+ *                 enum: [0, 1, 2]
+ *                 default: 1
+ *               reportStatus:
+ *                 type: integer
+ *                 enum: [1, 2, 3]
+ *                 description: 1 Pending, 2 Open, 3 Closed
+ *                 default: 1
+ *     responses:
+ *       200:
+ *         description: Report submitted successfully
+ */
+router.post(
+  "/reportPost",
+  reportPost
+);
+
+/**
+ * @swagger
+ * /admin/post/getAllReport:
+ *   get:
+ *     summary: Get all post/comment reports
+ *     tags: [Post]
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *         description: Optional reporting user id
+ *       - in: query
+ *         name: feedId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: feedType
+ *         schema:
+ *           type: string
+ *           enum: [Post, Comment]
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: integer
+ *           enum: [0, 1, 2]
+ *       - in: query
+ *         name: reportStatus
+ *         schema:
+ *           type: integer
+ *           enum: [1, 2, 3]
+ *         description: 1 Pending, 2 Open, 3 Closed
+ *       - in: query
+ *         name: searchText
+ *         schema:
+ *           type: string
+ *         description: Search by issue type or description
+ *       - in: query
+ *         name: pageIndex
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Reports fetched successfully
+ */
+router.get(
+  "/getAllReport",
+  getAllReport
 );
 
 module.exports = router;
