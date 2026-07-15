@@ -164,6 +164,70 @@ function getShareKey(postId, sharedByUserId, sharedToUserId = null) {
   return `${postId.toString()}:USER:${sharedByUserId.toString()}`;
 }
 
+function mapReportedByUserResponse(user) {
+  if (!user) return null;
+
+  return {
+    id: user._id,
+    name: getUserDisplayName(user),
+    mobileNumber: user.mobileNumber || "",
+    profileUrl: user.profileUrl || null,
+  };
+}
+
+function mapReportFeedResponse(report) {
+  const feed = report.feedId;
+
+  if (!feed || !feed._id) {
+    return {
+      feedResponse: feed || null,
+      postResponse: null,
+      commentResponse: null,
+    };
+  }
+
+  if (report.feedType === "Post") {
+    const postResponse = {
+      id: feed._id,
+      title: feed.title || "",
+      description: feed.description || "",
+      mediaUrls: feed.mediaUrls || [],
+      type: feed.type || "POST",
+      eventDate: formatDate(feed.eventDate),
+      status: feed.status,
+      likeCount: feed.likeCount || 0,
+      commentCount: feed.commentCount || 0,
+      shareCount: feed.shareCount || 0,
+      viewCount: feed.viewCount || 0,
+      createdAt: formatDate(feed.createdAt),
+      updatedAt: formatDate(feed.updatedAt),
+    };
+
+    return {
+      feedResponse: postResponse,
+      postResponse,
+      commentResponse: null,
+    };
+  }
+
+  const commentResponse = {
+    id: feed._id,
+    postId: feed.postId || null,
+    userId: feed.userId || null,
+    comment: feed.comment || "",
+    parentCommentId: feed.parentCommentId || null,
+    status: feed.status,
+    createdAt: formatDate(feed.createdAt),
+    updatedAt: formatDate(feed.updatedAt),
+  };
+
+  return {
+    feedResponse: commentResponse,
+    postResponse: null,
+    commentResponse,
+  };
+}
+
 async function sendPostCreatedVillageNotifications({ post, creatorId }) {
   try {
     if (!creatorId) return;
@@ -2760,35 +2824,41 @@ async function getAllReportService(query) {
       ]);
 
     const content =
-      reports.map((item) => ({
-        id: item._id,
-        feedId: item.feedId?._id || item.feedId,
-        feedType: item.feedType,
-        issueType: item.issueType,
-        descriptions: item.descriptions || "",
-        status: item.status,
-        reportStatus: item.reportStatus,
-        reportStatusLabel:
-          item.reportStatus === 1
-            ? "Pending"
-            : item.reportStatus === 2
-              ? "Open"
-              : "Closed",
-        userResponse: item.userId
-          ? {
-              id: item.userId._id,
-              name:
-                getUserDisplayName(item.userId),
-              mobileNumber:
-                item.userId.mobileNumber || "",
-              profileUrl:
-                item.userId.profileUrl || null,
-            }
-          : null,
-        feedResponse: item.feedId || null,
-        createdAt: formatDate(item.createdAt),
-        updatedAt: formatDate(item.updatedAt),
-      }));
+      reports.map((item) => {
+        const reportedByUserResponse =
+          mapReportedByUserResponse(
+            item.userId
+          );
+
+        const {
+          feedResponse,
+          postResponse,
+          commentResponse,
+        } = mapReportFeedResponse(item);
+
+        return {
+          id: item._id,
+          feedId: item.feedId?._id || item.feedId,
+          feedType: item.feedType,
+          issueType: item.issueType,
+          descriptions: item.descriptions || "",
+          status: item.status,
+          reportStatus: item.reportStatus,
+          reportStatusLabel:
+            item.reportStatus === 1
+              ? "Pending"
+              : item.reportStatus === 2
+                ? "Open"
+                : "Closed",
+          reportedByUserResponse,
+          userResponse: reportedByUserResponse,
+          feedResponse,
+          postResponse,
+          commentResponse,
+          createdAt: formatDate(item.createdAt),
+          updatedAt: formatDate(item.updatedAt),
+        };
+      });
 
     const totalPages =
       Math.ceil(totalRecords / limit);
@@ -2822,6 +2892,218 @@ async function getAllReportService(query) {
   }
 }
 
+async function blockUnblockReportService(body) {
+  try {
+    const { id, status } = body;
+
+    if (!id) {
+      return buildResponse(
+        400,
+        "id is required",
+        null
+      );
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return buildResponse(
+        400,
+        "Invalid id",
+        null
+      );
+    }
+
+    if (
+      status === undefined ||
+      status === null ||
+      status === ""
+    ) {
+      return buildResponse(
+        400,
+        "status is required",
+        null
+      );
+    }
+
+    const numericStatus = Number(status);
+
+    if (![0, 1, 2].includes(numericStatus)) {
+      return buildResponse(
+        400,
+        "status must be 0, 1 or 2",
+        null
+      );
+    }
+
+    const report =
+      await ReportSpam.findById(id);
+
+    if (!report) {
+      return buildResponse(
+        404,
+        "Report not found",
+        null
+      );
+    }
+
+    if (report.status === numericStatus) {
+      if (numericStatus === 1) {
+        return buildResponse(
+          400,
+          "Report already active.",
+          null
+        );
+      }
+
+      if (numericStatus === 2) {
+        return buildResponse(
+          400,
+          "Report already blocked.",
+          null
+        );
+      }
+
+      if (numericStatus === 0) {
+        return buildResponse(
+          400,
+          "Report already deleted.",
+          null
+        );
+      }
+    }
+
+    report.status = numericStatus;
+    await report.save();
+
+    let message = "Report status updated successfully.";
+    if (numericStatus === 0) {
+      message = "Report deleted successfully.";
+    }
+    if (numericStatus === 1) {
+      message = "Report activated successfully.";
+    }
+    if (numericStatus === 2) {
+      message = "Report blocked successfully.";
+    }
+
+    return buildResponse(
+      200,
+      message,
+      report
+    );
+  } catch (error) {
+    logger.error("blockUnblockReportService error", {
+      error: error.message,
+      stack: error.stack,
+      body,
+    });
+
+    return buildResponse(
+      500,
+      "Internal Server Error",
+      null
+    );
+  }
+}
+
+async function openCloseReportService(body) {
+  try {
+    const { id, reportStatus } = body;
+
+    if (!id) {
+      return buildResponse(
+        400,
+        "id is required",
+        null
+      );
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return buildResponse(
+        400,
+        "Invalid id",
+        null
+      );
+    }
+
+    if (
+      reportStatus === undefined ||
+      reportStatus === null ||
+      reportStatus === ""
+    ) {
+      return buildResponse(
+        400,
+        "reportStatus is required",
+        null
+      );
+    }
+
+    const numericReportStatus =
+      Number(reportStatus);
+
+    if (![1, 2, 3].includes(numericReportStatus)) {
+      return buildResponse(
+        400,
+        "reportStatus must be 1, 2 or 3",
+        null
+      );
+    }
+
+    const report =
+      await ReportSpam.findById(id);
+
+    if (!report) {
+      return buildResponse(
+        404,
+        "Report not found",
+        null
+      );
+    }
+
+    if (report.reportStatus === numericReportStatus) {
+      const label =
+        numericReportStatus === 1
+          ? "pending"
+          : numericReportStatus === 2
+            ? "open"
+            : "closed";
+
+      return buildResponse(
+        400,
+        `Report already ${label}.`,
+        null
+      );
+    }
+
+    report.reportStatus = numericReportStatus;
+    await report.save();
+
+    const message =
+      numericReportStatus === 1
+        ? "Report marked as pending successfully."
+        : numericReportStatus === 2
+          ? "Report opened successfully."
+          : "Report closed successfully.";
+
+    return buildResponse(
+      200,
+      message,
+      report
+    );
+  } catch (error) {
+    logger.error("openCloseReportService error", {
+      error: error.message,
+      stack: error.stack,
+      body,
+    });
+
+    return buildResponse(
+      500,
+      "Internal Server Error",
+      null
+    );
+  }
+}
+
 module.exports = {
   createPostService,
   getFeedService,
@@ -2838,4 +3120,6 @@ module.exports = {
   blockUnblockPostService,
   reportPostService,
   getAllReportService,
+  blockUnblockReportService,
+  openCloseReportService,
 };

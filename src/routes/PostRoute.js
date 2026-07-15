@@ -43,7 +43,9 @@ const {
   getAllPost,
   blockUnblockPost,
   reportPost,
-  getAllReport
+  getAllReport,
+  blockUnblockReport,
+  openCloseReport
 } = require("../controllers/PostController");
 
 /**
@@ -689,6 +691,72 @@ router.post(
 router.get(
   "/getAllReport",
   getAllReport
+);
+
+/**
+ * @swagger
+ * /admin/post/blockUnblockReport:
+ *   post:
+ *     summary: Block/unblock/delete report
+ *     tags: [Post]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - id
+ *               - status
+ *             properties:
+ *               id:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd9
+ *               status:
+ *                 type: integer
+ *                 enum: [0, 1, 2]
+ *                 description: 0 deleted, 1 active, 2 blocked
+ *                 example: 2
+ *     responses:
+ *       200:
+ *         description: Report status updated successfully
+ */
+router.post(
+  "/blockUnblockReport",
+  blockUnblockReport
+);
+
+/**
+ * @swagger
+ * /admin/post/openCloseReport:
+ *   post:
+ *     summary: Mark report as pending, open, or closed
+ *     tags: [Post]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - id
+ *               - reportStatus
+ *             properties:
+ *               id:
+ *                 type: string
+ *                 example: 6853ac3e6c6f4e00123abcd9
+ *               reportStatus:
+ *                 type: integer
+ *                 enum: [1, 2, 3]
+ *                 description: 1 Pending, 2 Open, 3 Closed
+ *                 example: 3
+ *     responses:
+ *       200:
+ *         description: Report workflow status updated successfully
+ */
+router.post(
+  "/openCloseReport",
+  openCloseReport
 );
 
 module.exports = router;

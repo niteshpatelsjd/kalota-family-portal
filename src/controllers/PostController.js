@@ -14,6 +14,8 @@ const {
   blockUnblockPostService,
   reportPostService,
   getAllReportService,
+  blockUnblockReportService,
+  openCloseReportService,
 } = require("../services/PostService");
 
 async function createPost(req, res) {
@@ -219,6 +221,24 @@ async function getAllReport(req, res) {
     .json(response);
 }
 
+async function blockUnblockReport(req, res) {
+  const response =
+    await blockUnblockReportService(req.body);
+
+  return res
+    .status(response.responseCode || 200)
+    .json(response);
+}
+
+async function openCloseReport(req, res) {
+  const response =
+    await openCloseReportService(req.body);
+
+  return res
+    .status(response.responseCode || 200)
+    .json(response);
+}
+
 module.exports = {
   createPost,
   getFeed,
@@ -232,6 +252,8 @@ module.exports = {
   blockUnblockPost,
   reportPost,
   getAllReport,
+  blockUnblockReport,
+  openCloseReport,
   sharePost,
   editPost,
   deletePost,
