@@ -222,6 +222,21 @@ router.post(
  *               personId:
  *                 type: string
  *
+ *               relationType:
+ *                 type: string
+ *                 enum:
+ *                   - HEAD
+ *                   - FATHER
+ *                   - MOTHER
+ *                   - SPOUSE
+ *                   - SON
+ *                   - DAUGHTER
+ *                   - BROTHER
+ *                   - SISTER
+ *                   - GRANDSON
+ *                   - GRANDDAUGHTER
+ *                 description: Optional. HEAD cannot be changed to another relation, and normal members cannot be changed to HEAD.
+ *
  *               linkedPersonId:
  *                 type: string
  *

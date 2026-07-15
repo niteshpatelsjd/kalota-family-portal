@@ -745,6 +745,54 @@ async function updateProfileService(
       );
     }
 
+    const requestedRelationType =
+      body.relationType
+        ? String(body.relationType)
+            .trim()
+            .toUpperCase()
+        : null;
+
+    const targetRelationType =
+      requestedRelationType ||
+      existingPerson.relationType;
+
+    const allowedRelationTypes = [
+      "HEAD",
+      ...Object.keys(RELATION_CONFIG),
+    ];
+
+    if (
+      requestedRelationType &&
+      !allowedRelationTypes.includes(
+        requestedRelationType
+      )
+    ) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Invalid relationType"
+      );
+    }
+
+    if (
+      existingPerson.relationType === "HEAD" &&
+      targetRelationType !== "HEAD"
+    ) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Family head relationType cannot be changed"
+      );
+    }
+
+    if (
+      existingPerson.relationType !== "HEAD" &&
+      targetRelationType === "HEAD"
+    ) {
+      return buildResponse(
+        DataConstant.BAD_REQUEST,
+        "Member relationType cannot be changed to HEAD"
+      );
+    }
+
     /*
      * Validate Village
      */
@@ -789,11 +837,26 @@ async function updateProfileService(
       "GRANDDAUGHTER",
     ];
 
+    const childRelationTypes = [
+      "SON",
+      "DAUGHTER",
+      "GRANDSON",
+      "GRANDDAUGHTER",
+    ];
+
+    const shouldValidateLinkedPerson =
+      body.linkedPersonId &&
+      (
+        linkedRelations.includes(
+          targetRelationType
+        ) ||
+        childRelationTypes.includes(
+          targetRelationType
+        )
+      );
+
     if (
-      linkedRelations.includes(
-        existingPerson.relationType
-      ) &&
-      body.linkedPersonId
+      shouldValidateLinkedPerson
     ) {
 
       linkedPerson =
@@ -856,7 +919,7 @@ if (file) {
           "DAUGHTER",
           "GRANDDAUGHTER",
         ].includes(
-          existingPerson.relationType
+          targetRelationType
         )
       ) &&
       maritalStatus ===
@@ -882,7 +945,7 @@ if (file) {
       existingPerson.gender;
 
     if (
-      existingPerson.relationType ===
+      targetRelationType ===
         "SPOUSE" &&
       linkedPerson
     ) {
@@ -894,12 +957,22 @@ if (file) {
           : "MALE";
     }
 
+    if (
+      RELATION_CONFIG[targetRelationType]?.gender
+    ) {
+      gender =
+        RELATION_CONFIG[targetRelationType].gender;
+    }
+
     /*
      * Prepare Update Payload
      */
 
     const updatePayload = {
       ...body,
+
+      relationType:
+        targetRelationType,
 
       gender,
 
@@ -909,8 +982,6 @@ if (file) {
     /*
      * Restricted Fields
      */
-
-    delete updatePayload.relationType;
 
     delete updatePayload.familyId;
 
@@ -987,9 +1058,8 @@ if (file) {
      */
 
     if (
-      linkedRelations.includes(
-        existingPerson.relationType
-      ) &&
+      targetRelationType ===
+        "SPOUSE" &&
       body.linkedPersonId
     ) {
 
@@ -1022,6 +1092,48 @@ if (file) {
               body.linkedPersonId,
           },
         },
+        session
+      );
+    }
+
+    if (
+      childRelationTypes.includes(
+        targetRelationType
+      ) &&
+      linkedPerson
+    ) {
+
+      logger.info(
+        "Updating parent-child relation"
+      );
+
+      const memberParentUpdate = {};
+
+      if (
+        linkedPerson.gender ===
+        "FEMALE"
+      ) {
+        memberParentUpdate.motherId =
+          linkedPerson._id;
+      } else {
+        memberParentUpdate.fatherId =
+          linkedPerson._id;
+      }
+
+      await updatePerson(
+        linkedPerson._id,
+        {
+          $addToSet: {
+            childrenIds:
+              existingPerson._id,
+          },
+        },
+        session
+      );
+
+      await updatePerson(
+        existingPerson._id,
+        memberParentUpdate,
         session
       );
     }
