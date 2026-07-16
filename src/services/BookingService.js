@@ -621,12 +621,32 @@ async function createBooking(data) {
       createdBy,
     } = data;
 
+    logger.info("createBooking request received", {
+      dharamshalaId,
+      unitId,
+      userId,
+      eventType,
+      bookingFromDate: bookingFromDate || fromDate,
+      bookingToDate: bookingToDate || toDate,
+      guestCount,
+      bookingAmount,
+      securityDeposit,
+    });
+
     if (!userId || !isValidObjectId(userId)) {
+      logger.warn("createBooking validation failed", {
+        reason: "INVALID_USER_ID",
+        userId,
+      });
       return buildResponse(400, "Valid userId is required", null);
     }
 
     const user = await User.findById(userId);
     if (!user) {
+      logger.warn("createBooking validation failed", {
+        reason: "USER_NOT_FOUND",
+        userId,
+      });
       return buildResponse(404, "User not found", null);
     }
 
@@ -634,12 +654,24 @@ async function createBooking(data) {
       dharamshalaId,
       unitId,
     });
-    if (!validation.valid) return validation.response;
+    if (!validation.valid) {
+      logger.warn("createBooking validation failed", {
+        reason: "DHARAMSHALA_OR_UNIT_INVALID",
+        dharamshalaId,
+        unitId,
+        message: validation.response?.message,
+      });
+      return validation.response;
+    }
 
     const parsedFromDate = parseDateOnly(bookingFromDate || fromDate);
     const parsedToDate = parseDateOnly(bookingToDate || toDate, true);
 
     if (!parsedFromDate) {
+      logger.warn("createBooking validation failed", {
+        reason: "INVALID_FROM_DATE",
+        bookingFromDate: bookingFromDate || fromDate,
+      });
       return buildResponse(
         400,
         "bookingFromDate/fromDate must be in dd-MM-yyyy format",
@@ -648,6 +680,10 @@ async function createBooking(data) {
     }
 
     if (!parsedToDate) {
+      logger.warn("createBooking validation failed", {
+        reason: "INVALID_TO_DATE",
+        bookingToDate: bookingToDate || toDate,
+      });
       return buildResponse(
         400,
         "bookingToDate/toDate must be in dd-MM-yyyy format",
@@ -656,6 +692,11 @@ async function createBooking(data) {
     }
 
     if (parsedFromDate > parsedToDate) {
+      logger.warn("createBooking validation failed", {
+        reason: "FROM_DATE_AFTER_TO_DATE",
+        bookingFromDate: bookingFromDate || fromDate,
+        bookingToDate: bookingToDate || toDate,
+      });
       return buildResponse(400, "bookingFromDate cannot be after bookingToDate", null);
     }
 
@@ -697,6 +738,17 @@ async function createBooking(data) {
     });
 
     const populatedBooking = await getBookingDocumentById(booking._id);
+
+    logger.info("createBooking completed successfully", {
+      bookingId: booking._id,
+      bookingNumber: booking.bookingNumber,
+      dharamshalaId,
+      unitId,
+      userId,
+      totalAmount: booking.totalAmount,
+      bookingStatus: booking.bookingStatus,
+      paymentStatus: booking.paymentStatus,
+    });
 
     return buildResponse(
       200,
@@ -916,7 +968,22 @@ async function approveRejectBooking(data) {
       paidAmount,
     } = data;
 
+    logger.info("approveRejectBooking request received", {
+      bookingId,
+      action,
+      actionBy,
+      approvedBy,
+      rejectedBy,
+      paymentType,
+      paymentOption,
+      paidAmount,
+    });
+
     if (!bookingId || !isValidObjectId(bookingId)) {
+      logger.warn("approveRejectBooking validation failed", {
+        reason: "INVALID_BOOKING_ID",
+        bookingId,
+      });
       return buildResponse(400, "Valid bookingId is required", null);
     }
 
@@ -926,14 +993,28 @@ async function approveRejectBooking(data) {
       actionDescriptions || actionDescription || remark || "";
 
     if (!["APPROVE", "REJECT"].includes(normalizedAction)) {
+      logger.warn("approveRejectBooking validation failed", {
+        reason: "INVALID_ACTION",
+        bookingId,
+        action,
+      });
       return buildResponse(400, "action must be APPROVE or REJECT", null);
     }
 
     if (!finalActionBy || !isValidObjectId(finalActionBy)) {
+      logger.warn("approveRejectBooking validation failed", {
+        reason: "INVALID_ACTION_BY",
+        bookingId,
+        actionBy: finalActionBy,
+      });
       return buildResponse(400, "Valid actionBy is required", null);
     }
 
     if (normalizedAction === "REJECT" && !String(finalActionDescriptions).trim()) {
+      logger.warn("approveRejectBooking validation failed", {
+        reason: "REJECT_DESCRIPTION_REQUIRED",
+        bookingId,
+      });
       return buildResponse(400, "actionDescriptions is required for rejection", null);
     }
 
@@ -943,10 +1024,20 @@ async function approveRejectBooking(data) {
     });
 
     if (!booking) {
+      logger.warn("approveRejectBooking validation failed", {
+        reason: "BOOKING_NOT_FOUND",
+        bookingId,
+      });
       return buildResponse(404, "Booking not found", null);
     }
 
     if (booking.bookingStatus !== BOOKING_STATUS.PENDING) {
+      logger.warn("approveRejectBooking business validation failed", {
+        reason: "BOOKING_NOT_PENDING",
+        bookingId,
+        bookingNumber: booking.bookingNumber,
+        currentBookingStatus: booking.bookingStatus,
+      });
       return buildResponse(400, "Only pending booking can be approved or rejected", null);
     }
 
@@ -964,6 +1055,13 @@ async function approveRejectBooking(data) {
         : null;
 
       if (!normalizedPaymentType && finalPaidAmount === null) {
+        logger.warn("approveRejectBooking payment validation failed", {
+          reason: "PAYMENT_TYPE_REQUIRED",
+          bookingId,
+          bookingNumber: booking.bookingNumber,
+          minimumPayableAmount,
+          fullPayableAmount: totalAmount,
+        });
         return buildResponse(
           400,
           "paymentType is required for approval. Use MINIMUM or FULL",
@@ -978,6 +1076,12 @@ async function approveRejectBooking(data) {
         normalizedPaymentType &&
         !["MINIMUM", "FULL"].includes(normalizedPaymentType)
       ) {
+        logger.warn("approveRejectBooking payment validation failed", {
+          reason: "INVALID_PAYMENT_TYPE",
+          bookingId,
+          bookingNumber: booking.bookingNumber,
+          paymentType: normalizedPaymentType,
+        });
         return buildResponse(400, "paymentType must be MINIMUM or FULL", null);
       }
 
@@ -990,10 +1094,23 @@ async function approveRejectBooking(data) {
       }
 
       if (!Number.isFinite(finalPaidAmount) || finalPaidAmount <= 0) {
+        logger.warn("approveRejectBooking payment validation failed", {
+          reason: "INVALID_PAID_AMOUNT",
+          bookingId,
+          bookingNumber: booking.bookingNumber,
+          paidAmount: finalPaidAmount,
+        });
         return buildResponse(400, "Valid paidAmount is required for approval", null);
       }
 
       if (finalPaidAmount < minimumPayableAmount) {
+        logger.warn("approveRejectBooking payment validation failed", {
+          reason: "PAID_AMOUNT_LESS_THAN_MINIMUM",
+          bookingId,
+          bookingNumber: booking.bookingNumber,
+          paidAmount: finalPaidAmount,
+          minimumPayableAmount,
+        });
         return buildResponse(
           400,
           `Minimum payable amount is ${minimumPayableAmount}`,
@@ -1005,6 +1122,13 @@ async function approveRejectBooking(data) {
       }
 
       if (finalPaidAmount > totalAmount) {
+        logger.warn("approveRejectBooking payment validation failed", {
+          reason: "PAID_AMOUNT_GREATER_THAN_TOTAL",
+          bookingId,
+          bookingNumber: booking.bookingNumber,
+          paidAmount: finalPaidAmount,
+          totalAmount,
+        });
         return buildResponse(400, "paidAmount cannot be greater than totalAmount", {
           fullPayableAmount: totalAmount,
         });
@@ -1018,6 +1142,13 @@ async function approveRejectBooking(data) {
       });
 
       if (overlappingBooking) {
+        logger.warn("approveRejectBooking business validation failed", {
+          reason: "OVERLAPPING_APPROVED_BOOKING",
+          bookingId,
+          bookingNumber: booking.bookingNumber,
+          conflictingBookingId: overlappingBooking._id,
+          conflictingBookingNumber: overlappingBooking.bookingNumber,
+        });
         return buildResponse(400, "Booking unit is already booked for selected dates", {
           conflictingBooking: {
             id: overlappingBooking._id,
@@ -1046,6 +1177,16 @@ async function approveRejectBooking(data) {
         message: `Your booking ${booking.bookingNumber} has been approved`,
         type: "BOOKING_APPROVED",
       });
+
+      logger.info("approveRejectBooking approve completed", {
+        bookingId: booking._id,
+        bookingNumber: booking.bookingNumber,
+        actionBy: finalActionBy,
+        paidAmount: booking.paidAmount,
+        balanceAmount: booking.balanceAmount,
+        paymentStatus: booking.paymentStatus,
+        bookingStatus: booking.bookingStatus,
+      });
     } else {
       booking.bookingStatus = BOOKING_STATUS.REJECTED;
       booking.actionBy = finalActionBy;
@@ -1059,6 +1200,14 @@ async function approveRejectBooking(data) {
         title: "Booking rejected",
         message: `Your booking ${booking.bookingNumber} has been rejected`,
         type: "BOOKING_REJECTED",
+      });
+
+      logger.info("approveRejectBooking reject completed", {
+        bookingId: booking._id,
+        bookingNumber: booking.bookingNumber,
+        actionBy: finalActionBy,
+        actionDescriptions: booking.actionDescriptions,
+        bookingStatus: booking.bookingStatus,
       });
     }
 

@@ -1,4 +1,5 @@
 const bookingService = require("../services/BookingService");
+const logger = require("../utils/logger");
 
 exports.addUpdateBookingUnit = async (req, res) => {
   const response = await bookingService.addUpdateBookingUnit(req.body);
@@ -21,7 +22,19 @@ exports.checkAvailability = async (req, res) => {
 };
 
 exports.createBooking = async (req, res) => {
+  logger.info("createBooking controller request", {
+    body: req.body,
+  });
+
   const response = await bookingService.createBooking(req.body);
+
+  logger.info("createBooking controller response", {
+    responseCode: response.responseCode,
+    message: response.message,
+    bookingId: response.responseBody?.id,
+    bookingNumber: response.responseBody?.bookingNumber,
+  });
+
   return res.status(response.responseCode || 200).json(response);
 };
 
@@ -36,7 +49,21 @@ exports.getBookingById = async (req, res) => {
 };
 
 exports.approveRejectBooking = async (req, res) => {
+  logger.info("approveRejectBooking controller request", {
+    body: req.body,
+  });
+
   const response = await bookingService.approveRejectBooking(req.body);
+
+  logger.info("approveRejectBooking controller response", {
+    responseCode: response.responseCode,
+    message: response.message,
+    bookingId: response.responseBody?.id,
+    bookingNumber: response.responseBody?.bookingNumber,
+    bookingStatus: response.responseBody?.bookingStatus,
+    paymentStatus: response.responseBody?.paymentStatus,
+  });
+
   return res.status(response.responseCode || 200).json(response);
 };
 
