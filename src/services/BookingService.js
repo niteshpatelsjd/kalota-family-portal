@@ -340,6 +340,63 @@ async function countOverlappingApprovedBookings({
   return await DharamshalaBooking.countDocuments(query);
 }
 
+async function countOverlappingApprovedBookingsForDharamshala({
+  dharamshalaId,
+  fromDate,
+  toDate,
+  excludeBookingId = null,
+}) {
+  const query = {
+    dharamshalaId,
+    status: 1,
+    bookingStatus: BOOKING_STATUS.APPROVED,
+    bookingFromDate: { $lte: toDate },
+    bookingToDate: { $gte: fromDate },
+  };
+
+  if (excludeBookingId) {
+    query._id = { $ne: excludeBookingId };
+  }
+
+  return await DharamshalaBooking.countDocuments(query);
+}
+
+async function countOverlappingFullDharamshalaBookings({
+  dharamshalaId,
+  fromDate,
+  toDate,
+  excludeBookingId = null,
+}) {
+  const fullDharamshalaUnits = await DharamshalaBookingUnit.find({
+    dharamshalaId,
+    unitType: "FULL_DHARAMSHALA",
+    status: 1,
+  })
+    .select("_id")
+    .lean();
+
+  const fullDharamshalaUnitIds = fullDharamshalaUnits.map((unit) => unit._id);
+
+  if (!fullDharamshalaUnitIds.length) {
+    return 0;
+  }
+
+  const query = {
+    dharamshalaId,
+    unitId: { $in: fullDharamshalaUnitIds },
+    status: 1,
+    bookingStatus: BOOKING_STATUS.APPROVED,
+    bookingFromDate: { $lte: toDate },
+    bookingToDate: { $gte: fromDate },
+  };
+
+  if (excludeBookingId) {
+    query._id = { $ne: excludeBookingId };
+  }
+
+  return await DharamshalaBooking.countDocuments(query);
+}
+
 async function sendBookingNotification({ booking, title, message, type }) {
   try {
     if (!booking?.userId) return;
@@ -596,6 +653,43 @@ async function checkAvailability(query) {
 
     if (parsedFromDate > parsedToDate) {
       return buildResponse(400, "fromDate cannot be after toDate", null);
+    }
+
+    if (validation.unit.unitType === "FULL_DHARAMSHALA") {
+      const overlappingDharamshalaBookings =
+        await countOverlappingApprovedBookingsForDharamshala({
+          dharamshalaId,
+          fromDate: parsedFromDate,
+          toDate: parsedToDate,
+        });
+
+      return buildResponse(200, "Availability checked successfully", {
+        isAvailable: overlappingDharamshalaBookings === 0,
+        totalUnits: 1,
+        bookedUnits: overlappingDharamshalaBookings > 0 ? 1 : 0,
+        availableUnits: overlappingDharamshalaBookings === 0 ? 1 : 0,
+        reason:
+          overlappingDharamshalaBookings > 0
+            ? "FULL_DHARAMSHALA_DATE_OCCUPIED"
+            : "",
+      });
+    }
+
+    const fullDharamshalaBookings =
+      await countOverlappingFullDharamshalaBookings({
+        dharamshalaId,
+        fromDate: parsedFromDate,
+        toDate: parsedToDate,
+      });
+
+    if (fullDharamshalaBookings > 0) {
+      return buildResponse(200, "Availability checked successfully", {
+        isAvailable: false,
+        totalUnits: Math.max(1, Number(validation.unit.totalUnits || 1)),
+        bookedUnits: Math.max(1, Number(validation.unit.totalUnits || 1)),
+        availableUnits: 0,
+        reason: "FULL_DHARAMSHALA_DATE_OCCUPIED",
+      });
     }
 
     const bookedUnits = await countOverlappingApprovedBookings({
@@ -1156,7 +1250,68 @@ async function approveRejectBooking(data) {
         });
       }
 
-      const unit = await DharamshalaBookingUnit.findById(booking.unitId).select("totalUnits unitName");
+      const unit = await DharamshalaBookingUnit.findById(booking.unitId).select("totalUnits unitName unitType");
+
+      if (unit?.unitType === "FULL_DHARAMSHALA") {
+        const overlappingDharamshalaBookings =
+          await countOverlappingApprovedBookingsForDharamshala({
+            dharamshalaId: booking.dharamshalaId,
+            fromDate: booking.bookingFromDate,
+            toDate: booking.bookingToDate,
+            excludeBookingId: booking._id,
+          });
+
+        if (overlappingDharamshalaBookings > 0) {
+          logger.warn("approveRejectBooking business validation failed", {
+            reason: "FULL_DHARAMSHALA_DATE_OCCUPIED",
+            bookingId,
+            bookingNumber: booking.bookingNumber,
+            dharamshalaId: booking.dharamshalaId,
+            overlappingDharamshalaBookings,
+          });
+
+          return buildResponse(
+            400,
+            "Full Dharamshala cannot be booked because selected date is occupied",
+            {
+              reason: "FULL_DHARAMSHALA_DATE_OCCUPIED",
+              totalUnits: 1,
+              bookedUnits: 1,
+              availableUnits: 0,
+            }
+          );
+        }
+      } else {
+        const fullDharamshalaBookings =
+          await countOverlappingFullDharamshalaBookings({
+            dharamshalaId: booking.dharamshalaId,
+            fromDate: booking.bookingFromDate,
+            toDate: booking.bookingToDate,
+            excludeBookingId: booking._id,
+          });
+
+        if (fullDharamshalaBookings > 0) {
+          logger.warn("approveRejectBooking business validation failed", {
+            reason: "FULL_DHARAMSHALA_DATE_OCCUPIED",
+            bookingId,
+            bookingNumber: booking.bookingNumber,
+            dharamshalaId: booking.dharamshalaId,
+            fullDharamshalaBookings,
+          });
+
+          return buildResponse(
+            400,
+            "Selected date is occupied because full Dharamshala is already booked",
+            {
+              reason: "FULL_DHARAMSHALA_DATE_OCCUPIED",
+              totalUnits: Math.max(1, Number(unit?.totalUnits || 1)),
+              bookedUnits: Math.max(1, Number(unit?.totalUnits || 1)),
+              availableUnits: 0,
+            }
+          );
+        }
+      }
+
       const totalUnits = Math.max(1, Number(unit?.totalUnits || 1));
       const bookedUnits = await countOverlappingApprovedBookings({
         unitId: booking.unitId,
