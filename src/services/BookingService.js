@@ -138,6 +138,7 @@ function mapUnitResponse(unit) {
     unitName: unit.unitName,
     unitType: unit.unitType,
     capacity: unit.capacity || 0,
+    totalUnits: unit.totalUnits || 1,
     basePrice: unit.basePrice || 0,
     securityDeposit: unit.securityDeposit || 0,
     description: unit.description || "",
@@ -176,6 +177,7 @@ function mapBookingResponse(booking) {
             unitName: unit.unitName || "",
             unitType: unit.unitType || "",
             capacity: unit.capacity || 0,
+            totalUnits: unit.totalUnits || 1,
             basePrice: unit.basePrice || 0,
             securityDeposit: unit.securityDeposit || 0,
           }
@@ -317,6 +319,27 @@ async function findOverlappingApprovedBooking({
   return await DharamshalaBooking.findOne(query).lean();
 }
 
+async function countOverlappingApprovedBookings({
+  unitId,
+  fromDate,
+  toDate,
+  excludeBookingId = null,
+}) {
+  const query = {
+    unitId,
+    status: 1,
+    bookingStatus: BOOKING_STATUS.APPROVED,
+    bookingFromDate: { $lte: toDate },
+    bookingToDate: { $gte: fromDate },
+  };
+
+  if (excludeBookingId) {
+    query._id = { $ne: excludeBookingId };
+  }
+
+  return await DharamshalaBooking.countDocuments(query);
+}
+
 async function sendBookingNotification({ booking, title, message, type }) {
   try {
     if (!booking?.userId) return;
@@ -348,6 +371,7 @@ async function addUpdateBookingUnit(data) {
       unitName,
       unitType,
       capacity,
+      totalUnits,
       basePrice,
       securityDeposit,
       description,
@@ -373,6 +397,7 @@ async function addUpdateBookingUnit(data) {
       unitName: String(unitName).trim(),
       unitType: normalizedUnitType,
       capacity: toNumber(capacity),
+      totalUnits: Math.max(1, toNumber(totalUnits, 1)),
       basePrice: toNumber(basePrice),
       securityDeposit: toNumber(securityDeposit),
       description: description || "",
@@ -573,22 +598,19 @@ async function checkAvailability(query) {
       return buildResponse(400, "fromDate cannot be after toDate", null);
     }
 
-    const overlappingBooking = await findOverlappingApprovedBooking({
+    const bookedUnits = await countOverlappingApprovedBookings({
       unitId,
       fromDate: parsedFromDate,
       toDate: parsedToDate,
     });
+    const totalUnits = Math.max(1, Number(validation.unit.totalUnits || 1));
+    const availableUnits = Math.max(0, totalUnits - bookedUnits);
 
     return buildResponse(200, "Availability checked successfully", {
-      isAvailable: !overlappingBooking,
-      conflictingBooking: overlappingBooking
-        ? {
-            id: overlappingBooking._id,
-            bookingNumber: overlappingBooking.bookingNumber,
-            bookingFromDate: formatDate(overlappingBooking.bookingFromDate),
-            bookingToDate: formatDate(overlappingBooking.bookingToDate),
-          }
-        : null,
+      isAvailable: availableUnits > 0,
+      totalUnits,
+      bookedUnits,
+      availableUnits,
     });
   } catch (error) {
     logger.error("checkAvailability error", {
@@ -769,7 +791,7 @@ async function createBooking(data) {
 async function getBookingDocumentById(id) {
   return await DharamshalaBooking.findById(id)
     .populate("dharamshalaId", "name type address bannerImage")
-    .populate("unitId", "unitName unitType capacity basePrice securityDeposit")
+    .populate("unitId", "unitName unitType capacity totalUnits basePrice securityDeposit")
     .populate("userId", "name firstName lastName mobileNumber profileUrl familyId")
     .populate("actionBy", "name firstName lastName profileImage profileUrl");
 }
@@ -892,7 +914,7 @@ async function getAllBooking(query) {
     const [bookings, totalRecords] = await Promise.all([
       DharamshalaBooking.find(filter)
         .populate("dharamshalaId", "name type address bannerImage")
-        .populate("unitId", "unitName unitType capacity basePrice securityDeposit")
+        .populate("unitId", "unitName unitType capacity totalUnits basePrice securityDeposit")
         .populate("userId", "name firstName lastName mobileNumber profileUrl familyId")
         .populate("actionBy", "name firstName lastName profileImage profileUrl")
         .sort({ createdAt: -1 })
@@ -1134,26 +1156,29 @@ async function approveRejectBooking(data) {
         });
       }
 
-      const overlappingBooking = await findOverlappingApprovedBooking({
+      const unit = await DharamshalaBookingUnit.findById(booking.unitId).select("totalUnits unitName");
+      const totalUnits = Math.max(1, Number(unit?.totalUnits || 1));
+      const bookedUnits = await countOverlappingApprovedBookings({
         unitId: booking.unitId,
         fromDate: booking.bookingFromDate,
         toDate: booking.bookingToDate,
         excludeBookingId: booking._id,
       });
+      const availableUnits = Math.max(0, totalUnits - bookedUnits);
 
-      if (overlappingBooking) {
+      if (availableUnits <= 0) {
         logger.warn("approveRejectBooking business validation failed", {
-          reason: "OVERLAPPING_APPROVED_BOOKING",
+          reason: "NO_AVAILABLE_UNITS",
           bookingId,
           bookingNumber: booking.bookingNumber,
-          conflictingBookingId: overlappingBooking._id,
-          conflictingBookingNumber: overlappingBooking.bookingNumber,
+          unitId: booking.unitId,
+          totalUnits,
+          bookedUnits,
         });
         return buildResponse(400, "Booking unit is already booked for selected dates", {
-          conflictingBooking: {
-            id: overlappingBooking._id,
-            bookingNumber: overlappingBooking.bookingNumber,
-          },
+          totalUnits,
+          bookedUnits,
+          availableUnits,
         });
       }
 
@@ -1299,6 +1324,147 @@ async function cancelBooking(data) {
   }
 }
 
+async function remainingBookingAmount(data) {
+  try {
+    const {
+      bookingId,
+      paidAmount,
+      actionBy,
+      actionDescriptions,
+      actionDescription,
+    } = data;
+
+    logger.info("remainingBookingAmount request received", {
+      bookingId,
+      paidAmount,
+      actionBy,
+    });
+
+    if (!bookingId || !isValidObjectId(bookingId)) {
+      logger.warn("remainingBookingAmount validation failed", {
+        reason: "INVALID_BOOKING_ID",
+        bookingId,
+      });
+      return buildResponse(400, "Valid bookingId is required", null);
+    }
+
+    if (!actionBy || !isValidObjectId(actionBy)) {
+      logger.warn("remainingBookingAmount validation failed", {
+        reason: "INVALID_ACTION_BY",
+        bookingId,
+        actionBy,
+      });
+      return buildResponse(400, "Valid actionBy is required", null);
+    }
+
+    const amount = Number(paidAmount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      logger.warn("remainingBookingAmount validation failed", {
+        reason: "INVALID_PAID_AMOUNT",
+        bookingId,
+        paidAmount,
+      });
+      return buildResponse(400, "Valid paidAmount is required", null);
+    }
+
+    const booking = await DharamshalaBooking.findOne({
+      _id: bookingId,
+      status: 1,
+    });
+
+    if (!booking) {
+      logger.warn("remainingBookingAmount validation failed", {
+        reason: "BOOKING_NOT_FOUND",
+        bookingId,
+      });
+      return buildResponse(404, "Booking not found", null);
+    }
+
+    if (booking.bookingStatus !== BOOKING_STATUS.APPROVED) {
+      logger.warn("remainingBookingAmount business validation failed", {
+        reason: "BOOKING_NOT_APPROVED",
+        bookingId,
+        bookingNumber: booking.bookingNumber,
+        bookingStatus: booking.bookingStatus,
+      });
+      return buildResponse(400, "Only approved booking payment can be updated", null);
+    }
+
+    if (booking.paymentStatus !== 2 || Number(booking.balanceAmount || 0) <= 0) {
+      logger.warn("remainingBookingAmount business validation failed", {
+        reason: "BOOKING_NOT_PARTIALLY_PAID",
+        bookingId,
+        bookingNumber: booking.bookingNumber,
+        paymentStatus: booking.paymentStatus,
+        balanceAmount: booking.balanceAmount,
+      });
+      return buildResponse(400, "Booking does not have remaining amount", null);
+    }
+
+    const currentBalanceAmount = Number(booking.balanceAmount || 0);
+    if (amount > currentBalanceAmount) {
+      logger.warn("remainingBookingAmount validation failed", {
+        reason: "PAID_AMOUNT_GREATER_THAN_BALANCE",
+        bookingId,
+        bookingNumber: booking.bookingNumber,
+        paidAmount: amount,
+        balanceAmount: currentBalanceAmount,
+      });
+      return buildResponse(400, "paidAmount cannot be greater than balanceAmount", {
+        balanceAmount: currentBalanceAmount,
+      });
+    }
+
+    booking.paidAmount = Number(booking.paidAmount || 0) + amount;
+    booking.balanceAmount = Math.max(0, currentBalanceAmount - amount);
+    booking.paymentStatus = booking.balanceAmount > 0 ? 2 : 3;
+    booking.actionBy = actionBy;
+    booking.actionAt = new Date();
+    booking.actionType = "PAYMENT_UPDATED";
+    booking.actionDescriptions =
+      actionDescriptions ||
+      actionDescription ||
+      (booking.balanceAmount > 0
+        ? "Partial remaining booking amount received"
+        : "Remaining booking amount received");
+
+    await booking.save();
+
+    await sendBookingNotification({
+      booking,
+      title: "Booking payment updated",
+      message: `Payment for booking ${booking.bookingNumber} has been updated`,
+      type: "BOOKING_PAYMENT_UPDATED",
+    });
+
+    logger.info("remainingBookingAmount completed successfully", {
+      bookingId: booking._id,
+      bookingNumber: booking.bookingNumber,
+      receivedAmount: amount,
+      paidAmount: booking.paidAmount,
+      balanceAmount: booking.balanceAmount,
+      paymentStatus: booking.paymentStatus,
+      actionBy,
+    });
+
+    const populatedBooking = await getBookingDocumentById(booking._id);
+
+    return buildResponse(
+      200,
+      "Remaining booking amount updated successfully",
+      mapBookingResponse(populatedBooking)
+    );
+  } catch (error) {
+    logger.error("remainingBookingAmount error", {
+      error: error.message,
+      stack: error.stack,
+      data,
+    });
+
+    return buildResponse(500, "Internal Server Error", null);
+  }
+}
+
 async function blockUnblockBooking({ id, status }) {
   try {
     if (!id || !isValidObjectId(id)) {
@@ -1356,5 +1522,6 @@ module.exports = {
   getBookingById,
   approveRejectBooking,
   cancelBooking,
+  remainingBookingAmount,
   blockUnblockBooking,
 };

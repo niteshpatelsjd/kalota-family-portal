@@ -72,6 +72,26 @@ exports.cancelBooking = async (req, res) => {
   return res.status(response.responseCode || 200).json(response);
 };
 
+exports.remainingBookingAmount = async (req, res) => {
+  logger.info("remainingBookingAmount controller request", {
+    body: req.body,
+  });
+
+  const response = await bookingService.remainingBookingAmount(req.body);
+
+  logger.info("remainingBookingAmount controller response", {
+    responseCode: response.responseCode,
+    message: response.message,
+    bookingId: response.responseBody?.id,
+    bookingNumber: response.responseBody?.bookingNumber,
+    paidAmount: response.responseBody?.paidAmount,
+    balanceAmount: response.responseBody?.balanceAmount,
+    paymentStatus: response.responseBody?.paymentStatus,
+  });
+
+  return res.status(response.responseCode || 200).json(response);
+};
+
 exports.blockUnblockBooking = async (req, res) => {
   const response = await bookingService.blockUnblockBooking(req.body);
   return res.status(response.responseCode || 200).json(response);

@@ -33,6 +33,12 @@ const DharamshalaBookingUnitSchema = new mongoose.Schema(
       default: 0,
     },
 
+    totalUnits: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+
     basePrice: {
       type: Number,
       default: 0,

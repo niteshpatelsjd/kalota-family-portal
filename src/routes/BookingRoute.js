@@ -35,6 +35,10 @@ const ctrl = require("../controllers/BookingController");
  *                 enum: [ROOM, HALL, KITCHEN, DINING, GROUND, FULL_DHARAMSHALA, OTHER]
  *               capacity:
  *                 type: number
+ *               totalUnits:
+ *                 type: number
+ *                 minimum: 1
+ *                 description: Total number of rooms/halls/services available for this booking unit
  *               basePrice:
  *                 type: number
  *               securityDeposit:
@@ -145,7 +149,7 @@ router.post("/blockUnblockBookingUnit", ctrl.blockUnblockBookingUnit);
  *           example: 22-08-2026
  *     responses:
  *       200:
- *         description: Availability checked successfully
+ *         description: Availability checked successfully. responseBody contains isAvailable, totalUnits, bookedUnits and availableUnits.
  */
 router.get("/checkAvailability", ctrl.checkAvailability);
 
@@ -341,6 +345,35 @@ router.post("/approveRejectBooking", ctrl.approveRejectBooking);
  *         description: Booking cancelled successfully
  */
 router.post("/cancelBooking", ctrl.cancelBooking);
+
+/**
+ * @openapi
+ * /admin/booking/remainingBookingAmount:
+ *   post:
+ *     tags: [Booking Controller]
+ *     summary: Receive remaining booking amount
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [bookingId, paidAmount, actionBy]
+ *             properties:
+ *               bookingId:
+ *                 type: string
+ *               paidAmount:
+ *                 type: number
+ *                 minimum: 0.000001
+ *               actionBy:
+ *                 type: string
+ *               actionDescriptions:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Remaining booking amount updated successfully
+ */
+router.post("/remainingBookingAmount", ctrl.remainingBookingAmount);
 
 /**
  * @openapi

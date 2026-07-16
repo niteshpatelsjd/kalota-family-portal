@@ -130,7 +130,7 @@ const DharamshalaBookingSchema = new mongoose.Schema(
 
     actionType: {
       type: String,
-      enum: ["", "APPROVED", "REJECTED", "CANCELLED", "COMPLETED"],
+      enum: ["", "APPROVED", "REJECTED", "CANCELLED", "COMPLETED", "PAYMENT_UPDATED"],
       default: "",
       trim: true,
     },
