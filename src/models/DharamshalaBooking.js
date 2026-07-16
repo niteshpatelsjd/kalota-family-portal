@@ -117,43 +117,25 @@ const DharamshalaBookingSchema = new mongoose.Schema(
       default: 1,
     },
 
-    approvedBy: {
+    actionBy: {
       type: mongoose.Schema.Types.ObjectId,
+      ref: "user",
       default: null,
     },
 
-    approvedAt: {
+    actionAt: {
       type: Date,
       default: null,
     },
 
-    rejectedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      default: null,
-    },
-
-    rejectedAt: {
-      type: Date,
-      default: null,
-    },
-
-    rejectionReason: {
+    actionType: {
       type: String,
+      enum: ["", "APPROVED", "REJECTED", "CANCELLED", "COMPLETED"],
       default: "",
       trim: true,
     },
 
-    cancelledBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      default: null,
-    },
-
-    cancelledAt: {
-      type: Date,
-      default: null,
-    },
-
-    cancelReason: {
+    actionDescriptions: {
       type: String,
       default: "",
       trim: true,

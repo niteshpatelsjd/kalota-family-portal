@@ -292,19 +292,24 @@ router.get("/getBookingById", ctrl.getBookingById);
  *         application/json:
  *           schema:
  *             type: object
- *             required: [bookingId, action]
+ *             required: [bookingId, action, actionBy]
  *             properties:
  *               bookingId:
  *                 type: string
  *               action:
  *                 type: string
  *                 enum: [APPROVE, REJECT]
- *               approvedBy:
+ *               actionBy:
  *                 type: string
- *               rejectedBy:
+ *               actionDescriptions:
  *                 type: string
- *               remark:
+ *               paymentType:
  *                 type: string
+ *                 enum: [MINIMUM, FULL]
+ *                 description: Required for approval if paidAmount is not supplied. MINIMUM uses securityDeposit if available otherwise totalAmount.
+ *               paidAmount:
+ *                 type: number
+ *                 description: Optional custom paid amount. Must be at least minimum payable and not greater than totalAmount.
  *     responses:
  *       200:
  *         description: Booking approved or rejected successfully
@@ -323,13 +328,13 @@ router.post("/approveRejectBooking", ctrl.approveRejectBooking);
  *         application/json:
  *           schema:
  *             type: object
- *             required: [bookingId]
+ *             required: [bookingId, actionBy]
  *             properties:
  *               bookingId:
  *                 type: string
- *               cancelledBy:
+ *               actionBy:
  *                 type: string
- *               cancelReason:
+ *               actionDescriptions:
  *                 type: string
  *     responses:
  *       200:

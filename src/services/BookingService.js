@@ -96,6 +96,17 @@ function paymentStatusLabel(status) {
   return "";
 }
 
+function getActionUserResponse(actionBy) {
+  if (!actionBy || !actionBy._id) return null;
+
+  return {
+    id: actionBy._id,
+    name: getUserDisplayName(actionBy),
+    profileImage: actionBy.profileImage || actionBy.profileUrl || null,
+    profileUrl: actionBy.profileUrl || null,
+  };
+}
+
 function getUserDisplayName(user) {
   if (!user) return "";
 
@@ -198,14 +209,10 @@ function mapBookingResponse(booking) {
     paymentStatus: booking.paymentStatus,
     paymentStatusLabel: paymentStatusLabel(booking.paymentStatus),
     status: booking.status,
-    rejectionReason: booking.rejectionReason || "",
-    cancelReason: booking.cancelReason || "",
-    approvedBy: booking.approvedBy || null,
-    approvedAt: booking.approvedAt || null,
-    rejectedBy: booking.rejectedBy || null,
-    rejectedAt: booking.rejectedAt || null,
-    cancelledBy: booking.cancelledBy || null,
-    cancelledAt: booking.cancelledAt || null,
+    actionBy: getActionUserResponse(booking.actionBy),
+    actionAt: booking.actionAt || null,
+    actionType: booking.actionType || "",
+    actionDescriptions: booking.actionDescriptions || "",
     createdAt: booking.createdAt,
     updatedAt: booking.updatedAt,
   };
@@ -711,7 +718,8 @@ async function getBookingDocumentById(id) {
   return await DharamshalaBooking.findById(id)
     .populate("dharamshalaId", "name type address bannerImage")
     .populate("unitId", "unitName unitType capacity basePrice securityDeposit")
-    .populate("userId", "name firstName lastName mobileNumber profileUrl familyId");
+    .populate("userId", "name firstName lastName mobileNumber profileUrl familyId")
+    .populate("actionBy", "name firstName lastName profileImage profileUrl");
 }
 
 async function getAllBooking(query) {
@@ -834,6 +842,7 @@ async function getAllBooking(query) {
         .populate("dharamshalaId", "name type address bannerImage")
         .populate("unitId", "unitName unitType capacity basePrice securityDeposit")
         .populate("userId", "name firstName lastName mobileNumber profileUrl familyId")
+        .populate("actionBy", "name firstName lastName profileImage profileUrl")
         .sort({ createdAt: -1 })
         .skip(page * limit)
         .limit(limit),
@@ -893,16 +902,39 @@ async function getBookingById({ id }) {
 
 async function approveRejectBooking(data) {
   try {
-    const { bookingId, action, approvedBy, rejectedBy, remark } = data;
+    const {
+      bookingId,
+      action,
+      actionBy,
+      actionDescriptions,
+      actionDescription,
+      approvedBy,
+      rejectedBy,
+      remark,
+      paymentType,
+      paymentOption,
+      paidAmount,
+    } = data;
 
     if (!bookingId || !isValidObjectId(bookingId)) {
       return buildResponse(400, "Valid bookingId is required", null);
     }
 
     const normalizedAction = String(action || "").toUpperCase();
+    const finalActionBy = actionBy || approvedBy || rejectedBy;
+    const finalActionDescriptions =
+      actionDescriptions || actionDescription || remark || "";
 
     if (!["APPROVE", "REJECT"].includes(normalizedAction)) {
       return buildResponse(400, "action must be APPROVE or REJECT", null);
+    }
+
+    if (!finalActionBy || !isValidObjectId(finalActionBy)) {
+      return buildResponse(400, "Valid actionBy is required", null);
+    }
+
+    if (normalizedAction === "REJECT" && !String(finalActionDescriptions).trim()) {
+      return buildResponse(400, "actionDescriptions is required for rejection", null);
     }
 
     const booking = await DharamshalaBooking.findOne({
@@ -919,6 +951,65 @@ async function approveRejectBooking(data) {
     }
 
     if (normalizedAction === "APPROVE") {
+      const totalAmount = Number(booking.totalAmount || 0);
+      const minimumPayableAmount =
+        Number(booking.securityDeposit || 0) > 0
+          ? Number(booking.securityDeposit || 0)
+          : totalAmount;
+      const normalizedPaymentType = String(paymentType || paymentOption || "")
+        .toUpperCase()
+        .trim();
+      let finalPaidAmount = paidAmount !== undefined && paidAmount !== null && paidAmount !== ""
+        ? Number(paidAmount)
+        : null;
+
+      if (!normalizedPaymentType && finalPaidAmount === null) {
+        return buildResponse(
+          400,
+          "paymentType is required for approval. Use MINIMUM or FULL",
+          {
+            minimumPayableAmount,
+            fullPayableAmount: totalAmount,
+          }
+        );
+      }
+
+      if (
+        normalizedPaymentType &&
+        !["MINIMUM", "FULL"].includes(normalizedPaymentType)
+      ) {
+        return buildResponse(400, "paymentType must be MINIMUM or FULL", null);
+      }
+
+      if (normalizedPaymentType === "MINIMUM") {
+        finalPaidAmount = minimumPayableAmount;
+      }
+
+      if (normalizedPaymentType === "FULL") {
+        finalPaidAmount = totalAmount;
+      }
+
+      if (!Number.isFinite(finalPaidAmount) || finalPaidAmount <= 0) {
+        return buildResponse(400, "Valid paidAmount is required for approval", null);
+      }
+
+      if (finalPaidAmount < minimumPayableAmount) {
+        return buildResponse(
+          400,
+          `Minimum payable amount is ${minimumPayableAmount}`,
+          {
+            minimumPayableAmount,
+            fullPayableAmount: totalAmount,
+          }
+        );
+      }
+
+      if (finalPaidAmount > totalAmount) {
+        return buildResponse(400, "paidAmount cannot be greater than totalAmount", {
+          fullPayableAmount: totalAmount,
+        });
+      }
+
       const overlappingBooking = await findOverlappingApprovedBooking({
         unitId: booking.unitId,
         fromDate: booking.bookingFromDate,
@@ -936,11 +1027,17 @@ async function approveRejectBooking(data) {
       }
 
       booking.bookingStatus = BOOKING_STATUS.APPROVED;
-      booking.approvedBy = approvedBy || null;
-      booking.approvedAt = new Date();
-      booking.rejectedBy = null;
-      booking.rejectedAt = null;
-      booking.rejectionReason = "";
+      booking.paidAmount = finalPaidAmount;
+      booking.balanceAmount = Math.max(0, totalAmount - finalPaidAmount);
+      booking.paymentStatus = booking.balanceAmount > 0 ? 2 : 3;
+      booking.actionBy = finalActionBy;
+      booking.actionAt = new Date();
+      booking.actionType = "APPROVED";
+      booking.actionDescriptions =
+        finalActionDescriptions ||
+        (booking.balanceAmount > 0
+          ? "Booking approved with minimum payment"
+          : "Booking approved with full payment");
       await booking.save();
 
       await sendBookingNotification({
@@ -951,9 +1048,10 @@ async function approveRejectBooking(data) {
       });
     } else {
       booking.bookingStatus = BOOKING_STATUS.REJECTED;
-      booking.rejectedBy = rejectedBy || approvedBy || null;
-      booking.rejectedAt = new Date();
-      booking.rejectionReason = remark || "";
+      booking.actionBy = finalActionBy;
+      booking.actionAt = new Date();
+      booking.actionType = "REJECTED";
+      booking.actionDescriptions = finalActionDescriptions;
       await booking.save();
 
       await sendBookingNotification({
@@ -986,7 +1084,14 @@ async function approveRejectBooking(data) {
 
 async function cancelBooking(data) {
   try {
-    const { bookingId, cancelledBy, cancelReason } = data;
+    const {
+      bookingId,
+      actionBy,
+      actionDescriptions,
+      actionDescription,
+      cancelledBy,
+      cancelReason,
+    } = data;
 
     if (!bookingId || !isValidObjectId(bookingId)) {
       return buildResponse(400, "Valid bookingId is required", null);
@@ -1001,14 +1106,23 @@ async function cancelBooking(data) {
       return buildResponse(404, "Booking not found", null);
     }
 
+    const finalActionBy = actionBy || cancelledBy;
+    const finalActionDescriptions =
+      actionDescriptions || actionDescription || cancelReason || "";
+
+    if (!finalActionBy || !isValidObjectId(finalActionBy)) {
+      return buildResponse(400, "Valid actionBy is required", null);
+    }
+
     if ([BOOKING_STATUS.CANCELLED, BOOKING_STATUS.REJECTED, BOOKING_STATUS.COMPLETED].includes(booking.bookingStatus)) {
       return buildResponse(400, "Booking cannot be cancelled in current status", null);
     }
 
     booking.bookingStatus = BOOKING_STATUS.CANCELLED;
-    booking.cancelledBy = cancelledBy || null;
-    booking.cancelledAt = new Date();
-    booking.cancelReason = cancelReason || "";
+    booking.actionBy = finalActionBy;
+    booking.actionAt = new Date();
+    booking.actionType = "CANCELLED";
+    booking.actionDescriptions = finalActionDescriptions;
     await booking.save();
 
     await sendBookingNotification({
