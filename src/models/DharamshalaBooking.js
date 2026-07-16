@@ -39,6 +39,13 @@ const DharamshalaBookingSchema = new mongoose.Schema(
       trim: true,
     },
 
+    bookingType: {
+      type: String,
+      enum: ["ONLINE", "OFFLINE"],
+      default: "OFFLINE",
+      trim: true,
+    },
+
     bookingFromDate: {
       type: Date,
       required: true,

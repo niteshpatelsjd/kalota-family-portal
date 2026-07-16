@@ -176,6 +176,10 @@ router.get("/checkAvailability", ctrl.checkAvailability);
  *               eventType:
  *                 type: string
  *                 example: MARRIAGE
+ *               bookingType:
+ *                 type: string
+ *                 enum: [ONLINE, OFFLINE]
+ *                 example: ONLINE
  *               bookingFromDate:
  *                 type: string
  *                 example: 20-08-2026
@@ -235,6 +239,11 @@ router.post("/createBooking", ctrl.createBooking);
  *         schema:
  *           type: integer
  *           enum: [1, 2, 3, 4]
+ *       - in: query
+ *         name: bookingType
+ *         schema:
+ *           type: string
+ *           enum: [ONLINE, OFFLINE]
  *       - in: query
  *         name: status
  *         schema:

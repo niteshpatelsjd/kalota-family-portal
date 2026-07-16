@@ -195,6 +195,7 @@ function mapBookingResponse(booking) {
         : null,
     familyId: booking.familyId || "",
     eventType: booking.eventType || "",
+    bookingType: booking.bookingType || "OFFLINE",
     bookingFromDate: formatDate(booking.bookingFromDate),
     bookingToDate: formatDate(booking.bookingToDate),
     checkInTime: booking.checkInTime || "",
@@ -724,6 +725,7 @@ async function createBooking(data) {
       unitId,
       userId,
       eventType,
+      bookingType,
       fromDate,
       toDate,
       bookingFromDate,
@@ -742,6 +744,7 @@ async function createBooking(data) {
       unitId,
       userId,
       eventType,
+      bookingType,
       bookingFromDate: bookingFromDate || fromDate,
       bookingToDate: bookingToDate || toDate,
       guestCount,
@@ -827,6 +830,9 @@ async function createBooking(data) {
       userId,
       familyId: user.familyId || "",
       eventType: eventType || "OTHER",
+      bookingType: ["ONLINE", "OFFLINE"].includes(String(bookingType || "").toUpperCase())
+        ? String(bookingType).toUpperCase()
+        : "OFFLINE",
       bookingFromDate: parsedFromDate,
       bookingToDate: parsedToDate,
       checkInTime: checkInTime || "",
@@ -897,6 +903,7 @@ async function getAllBooking(query) {
       unitId,
       userId,
       familyId,
+      bookingType,
       bookingStatus,
       paymentStatus,
       status,
@@ -933,6 +940,16 @@ async function getAllBooking(query) {
     }
 
     if (familyId) filter.familyId = familyId;
+
+    if (bookingType) {
+      const normalizedBookingType = String(bookingType).toUpperCase();
+
+      if (!["ONLINE", "OFFLINE"].includes(normalizedBookingType)) {
+        return buildResponse(400, "bookingType must be ONLINE or OFFLINE", null);
+      }
+
+      filter.bookingType = normalizedBookingType;
+    }
 
     if (bookingStatus !== undefined && bookingStatus !== null && bookingStatus !== "") {
       const numericBookingStatus = Number(bookingStatus);

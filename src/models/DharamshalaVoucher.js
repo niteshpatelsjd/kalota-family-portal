@@ -44,6 +44,7 @@ const DharamshalaVoucherSchema =
         type: String,
         enum: [
           "DONATION",
+          "BOOKING",
           "ADVANCE",
           "EXPENSE",
           "RETURN",
