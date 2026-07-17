@@ -121,14 +121,16 @@ async function addDharamshala(data) {
     const latitude =
       data.latitude !== undefined &&
       data.latitude !== null &&
-      data.latitude !== ""
+      data.latitude !== "" &&
+      String(data.latitude).toLowerCase() !== "null"
         ? Number(data.latitude)
         : null;
 
     const longitude =
       data.longitude !== undefined &&
       data.longitude !== null &&
-      data.longitude !== ""
+      data.longitude !== "" &&
+      String(data.longitude).toLowerCase() !== "null"
         ? Number(data.longitude)
         : null;
 
@@ -168,22 +170,27 @@ async function addDharamshala(data) {
       website: data.website || "",
       establishedYear: data.establishedYear || "",
 
-      latitude,
-      longitude,
-
-
       status: data.status !== undefined ? Number(data.status) : 1,
       updatedAt: new Date(),
     };
 
     if (profileImage) {
-  safeData.profileImage = profileImage;
-}
+      safeData.profileImage = profileImage;
+    }
 
-if (bannerImage) {
-  safeData.bannerImage = bannerImage;
-}
-    if (latitude !== null && longitude !== null) {
+    if (bannerImage) {
+      safeData.bannerImage = bannerImage;
+    }
+
+    const shouldUpdateCoordinates =
+      latitude !== null &&
+      longitude !== null &&
+      latitude !== 0 &&
+      longitude !== 0;
+
+    if (shouldUpdateCoordinates) {
+      safeData.latitude = latitude;
+      safeData.longitude = longitude;
       safeData.location = {
         type: "Point",
         coordinates: [longitude, latitude],
