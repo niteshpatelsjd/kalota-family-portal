@@ -398,12 +398,13 @@ async function countOverlappingFullDharamshalaBookings({
   return await DharamshalaBooking.countDocuments(query);
 }
 
-async function sendBookingNotification({ booking, title, message, type }) {
+async function sendBookingNotification({ booking, title, message, type, senderId = null }) {
   try {
     if (!booking?.userId) return;
 
     await sendNotificationToUserService({
       userId: booking.userId,
+      senderId,
       title,
       message,
       type,
@@ -496,6 +497,7 @@ async function autoCancelConflictingPendingBookings({
         title: "Booking auto cancelled",
         message: `Your booking ${pendingBooking.bookingNumber} has been cancelled because another booking was approved for selected dates`,
         type: "BOOKING_CANCELLED",
+        senderId: actionBy,
       })
     )
   );
@@ -949,6 +951,95 @@ async function createBooking(data) {
       );
     }
 
+    const fullDharamshalaUnitIds = await DharamshalaBookingUnit.find({
+      dharamshalaId,
+      unitType: "FULL_DHARAMSHALA",
+      status: 1,
+    })
+      .select("_id")
+      .lean();
+    const fullDharamshalaIds = fullDharamshalaUnitIds.map((unit) => unit._id);
+
+    if (validation.unit.unitType === "FULL_DHARAMSHALA") {
+      const existingUserAnyUnitBooking = await DharamshalaBooking.findOne({
+        dharamshalaId,
+        userId,
+        status: 1,
+        bookingStatus: {
+          $in: [BOOKING_STATUS.PENDING, BOOKING_STATUS.APPROVED],
+        },
+        bookingFromDate: { $lte: parsedToDate },
+        bookingToDate: { $gte: parsedFromDate },
+      })
+        .select("_id bookingNumber bookingStatus bookingFromDate bookingToDate unitId")
+        .lean();
+
+      if (existingUserAnyUnitBooking) {
+        logger.warn("createBooking duplicate booking blocked", {
+          reason: "FULL_DHARAMSHALA_USER_ALREADY_HAS_BOOKING",
+          dharamshalaId,
+          unitId,
+          userId,
+          existingBookingId: existingUserAnyUnitBooking._id,
+          existingBookingNumber: existingUserAnyUnitBooking.bookingNumber,
+          existingUnitId: existingUserAnyUnitBooking.unitId,
+        });
+
+        return buildResponse(
+          400,
+          "You already have a booking request for selected dates, so full Dharamshala cannot be booked again",
+          {
+            existingBooking: {
+              id: existingUserAnyUnitBooking._id,
+              bookingNumber: existingUserAnyUnitBooking.bookingNumber,
+              bookingStatus: existingUserAnyUnitBooking.bookingStatus,
+              bookingFromDate: formatDate(existingUserAnyUnitBooking.bookingFromDate),
+              bookingToDate: formatDate(existingUserAnyUnitBooking.bookingToDate),
+            },
+          }
+        );
+      }
+    } else if (fullDharamshalaIds.length) {
+      const existingUserFullDharamshalaBooking = await DharamshalaBooking.findOne({
+        dharamshalaId,
+        unitId: { $in: fullDharamshalaIds },
+        userId,
+        status: 1,
+        bookingStatus: {
+          $in: [BOOKING_STATUS.PENDING, BOOKING_STATUS.APPROVED],
+        },
+        bookingFromDate: { $lte: parsedToDate },
+        bookingToDate: { $gte: parsedFromDate },
+      })
+        .select("_id bookingNumber bookingStatus bookingFromDate bookingToDate")
+        .lean();
+
+      if (existingUserFullDharamshalaBooking) {
+        logger.warn("createBooking duplicate booking blocked", {
+          reason: "USER_ALREADY_BOOKED_FULL_DHARAMSHALA",
+          dharamshalaId,
+          unitId,
+          userId,
+          existingBookingId: existingUserFullDharamshalaBooking._id,
+          existingBookingNumber: existingUserFullDharamshalaBooking.bookingNumber,
+        });
+
+        return buildResponse(
+          400,
+          "You already have full Dharamshala booking request for selected dates, so another unit cannot be booked",
+          {
+            existingBooking: {
+              id: existingUserFullDharamshalaBooking._id,
+              bookingNumber: existingUserFullDharamshalaBooking.bookingNumber,
+              bookingStatus: existingUserFullDharamshalaBooking.bookingStatus,
+              bookingFromDate: formatDate(existingUserFullDharamshalaBooking.bookingFromDate),
+              bookingToDate: formatDate(existingUserFullDharamshalaBooking.bookingToDate),
+            },
+          }
+        );
+      }
+    }
+
     const bookingTotalAmount =
       toNumber(bookingAmount, validation.unit.basePrice || 0) +
       toNumber(securityDeposit, validation.unit.securityDeposit || 0);
@@ -987,6 +1078,7 @@ async function createBooking(data) {
       title: "Booking request created",
       message: `Your booking request ${booking.bookingNumber} has been created`,
       type: "BOOKING_CREATED",
+      senderId: createdBy || userId,
     });
 
     const populatedBooking = await getBookingDocumentById(booking._id);
@@ -1503,6 +1595,7 @@ async function approveRejectBooking(data) {
         title: "Booking approved",
         message: `Your booking ${booking.bookingNumber} has been approved`,
         type: "BOOKING_APPROVED",
+        senderId: finalActionBy,
       });
 
       const bookedUnitsAfterApproval = await countOverlappingApprovedBookings({
@@ -1546,6 +1639,7 @@ async function approveRejectBooking(data) {
         title: "Booking rejected",
         message: `Your booking ${booking.bookingNumber} has been rejected`,
         type: "BOOKING_REJECTED",
+        senderId: finalActionBy,
       });
 
       logger.info("approveRejectBooking reject completed", {
@@ -1625,6 +1719,7 @@ async function cancelBooking(data) {
       title: "Booking cancelled",
       message: `Your booking ${booking.bookingNumber} has been cancelled`,
       type: "BOOKING_CANCELLED",
+      senderId: finalActionBy,
     });
 
     const populatedBooking = await getBookingDocumentById(booking._id);
@@ -1756,6 +1851,7 @@ async function remainingBookingAmount(data) {
       title: "Booking payment updated",
       message: `Payment for booking ${booking.bookingNumber} has been updated`,
       type: "BOOKING_PAYMENT_UPDATED",
+      senderId: actionBy,
     });
 
     logger.info("remainingBookingAmount completed successfully", {
