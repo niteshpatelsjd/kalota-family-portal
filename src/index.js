@@ -1,4 +1,4 @@
-require("dotenv").config();
+﻿require("dotenv").config();
 const express = require("express");
 const morgan = require("morgan");
 const cors = require("cors");
@@ -22,6 +22,7 @@ const notificationRoutes = require("./routes/NotificationRoute");
 const donationRoutes = require("./routes/DonationRoute");
 const inventoryRoutes = require("./routes/InventoryRoute");
 const bookingRoutes = require("./routes/BookingRoute");
+const dharamshalaWebsiteRoutes = require("./routes/DharamshalaWebsiteRoute");
 
 const app = express();
 app.use(cors());
@@ -53,10 +54,11 @@ app.use("/admin/notification", notificationRoutes);
 app.use("/admin/donation", donationRoutes);
 app.use("/admin/inventory", inventoryRoutes);
 app.use("/admin/booking", bookingRoutes);
+app.use("/admin/dharamshala/website", dharamshalaWebsiteRoutes);
 
 app.get("/health", (_, res) => res.json({ status: "up" }));
 
 const PORT = process.env.PORT || 7000;
 connectDB().then(() =>
-  app.listen(PORT, () => console.log(`🚀 Admin Service running on port ${PORT}`))
+  app.listen(PORT, () => console.log(`ðŸš€ Admin Service running on port ${PORT}`))
 );
