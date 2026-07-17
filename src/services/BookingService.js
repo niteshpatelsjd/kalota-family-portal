@@ -421,6 +421,96 @@ async function sendBookingNotification({ booking, title, message, type }) {
   }
 }
 
+async function autoCancelConflictingPendingBookings({
+  approvedBooking,
+  approvedUnit,
+  actionBy,
+  cancelSameUnitPending = false,
+}) {
+  const baseOverlapQuery = {
+    _id: { $ne: approvedBooking._id },
+    dharamshalaId: approvedBooking.dharamshalaId,
+    status: 1,
+    bookingStatus: BOOKING_STATUS.PENDING,
+    bookingFromDate: { $lte: approvedBooking.bookingToDate },
+    bookingToDate: { $gte: approvedBooking.bookingFromDate },
+  };
+
+  let query = null;
+
+  if (approvedUnit?.unitType === "FULL_DHARAMSHALA") {
+    query = baseOverlapQuery;
+  } else {
+    const fullDharamshalaUnits = await DharamshalaBookingUnit.find({
+      dharamshalaId: approvedBooking.dharamshalaId,
+      unitType: "FULL_DHARAMSHALA",
+      status: 1,
+    })
+      .select("_id")
+      .lean();
+
+    const fullDharamshalaUnitIds = fullDharamshalaUnits.map((unit) => unit._id);
+    const unitIdsToCancel = [];
+
+    if (cancelSameUnitPending) {
+      unitIdsToCancel.push(approvedBooking.unitId);
+    }
+
+    unitIdsToCancel.push(...fullDharamshalaUnitIds);
+
+    if (!unitIdsToCancel.length) {
+      return 0;
+    }
+
+    query = {
+      ...baseOverlapQuery,
+      unitId: { $in: unitIdsToCancel },
+    };
+  }
+
+  const pendingBookings = await DharamshalaBooking.find(query);
+
+  if (!pendingBookings.length) {
+    return 0;
+  }
+
+  const now = new Date();
+
+  await DharamshalaBooking.updateMany(
+    { _id: { $in: pendingBookings.map((item) => item._id) } },
+    {
+      $set: {
+        bookingStatus: BOOKING_STATUS.CANCELLED,
+        actionBy,
+        actionAt: now,
+        actionType: "CANCELLED",
+        actionDescriptions: `Auto cancelled because booking ${approvedBooking.bookingNumber} was approved for selected dates`,
+      },
+    }
+  );
+
+  await Promise.allSettled(
+    pendingBookings.map((pendingBooking) =>
+      sendBookingNotification({
+        booking: pendingBooking,
+        title: "Booking auto cancelled",
+        message: `Your booking ${pendingBooking.bookingNumber} has been cancelled because another booking was approved for selected dates`,
+        type: "BOOKING_CANCELLED",
+      })
+    )
+  );
+
+  logger.info("autoCancelConflictingPendingBookings completed", {
+    approvedBookingId: approvedBooking._id,
+    approvedBookingNumber: approvedBooking.bookingNumber,
+    approvedUnitType: approvedUnit?.unitType,
+    cancelSameUnitPending,
+    cancelledCount: pendingBookings.length,
+  });
+
+  return pendingBookings.length;
+}
+
 async function addUpdateBookingUnit(data) {
   try {
     const {
@@ -817,6 +907,46 @@ async function createBooking(data) {
         bookingToDate: bookingToDate || toDate,
       });
       return buildResponse(400, "bookingFromDate cannot be after bookingToDate", null);
+    }
+
+    const existingUserBooking = await DharamshalaBooking.findOne({
+      dharamshalaId,
+      unitId,
+      userId,
+      status: 1,
+      bookingStatus: {
+        $in: [BOOKING_STATUS.PENDING, BOOKING_STATUS.APPROVED],
+      },
+      bookingFromDate: { $lte: parsedToDate },
+      bookingToDate: { $gte: parsedFromDate },
+    })
+      .select("_id bookingNumber bookingStatus bookingFromDate bookingToDate")
+      .lean();
+
+    if (existingUserBooking) {
+      logger.warn("createBooking duplicate booking blocked", {
+        reason: "DUPLICATE_USER_UNIT_DATE_BOOKING",
+        dharamshalaId,
+        unitId,
+        userId,
+        existingBookingId: existingUserBooking._id,
+        existingBookingNumber: existingUserBooking.bookingNumber,
+        existingBookingStatus: existingUserBooking.bookingStatus,
+      });
+
+      return buildResponse(
+        400,
+        "You already have a booking request for this unit on selected dates",
+        {
+          existingBooking: {
+            id: existingUserBooking._id,
+            bookingNumber: existingUserBooking.bookingNumber,
+            bookingStatus: existingUserBooking.bookingStatus,
+            bookingFromDate: formatDate(existingUserBooking.bookingFromDate),
+            bookingToDate: formatDate(existingUserBooking.bookingToDate),
+          },
+        }
+      );
     }
 
     const bookingTotalAmount =
@@ -1375,6 +1505,24 @@ async function approveRejectBooking(data) {
         type: "BOOKING_APPROVED",
       });
 
+      const bookedUnitsAfterApproval = await countOverlappingApprovedBookings({
+        unitId: booking.unitId,
+        fromDate: booking.bookingFromDate,
+        toDate: booking.bookingToDate,
+      });
+      const availableUnitsAfterApproval = Math.max(
+        0,
+        totalUnits - bookedUnitsAfterApproval
+      );
+      const autoCancelledCount = await autoCancelConflictingPendingBookings({
+        approvedBooking: booking,
+        approvedUnit: unit,
+        actionBy: finalActionBy,
+        cancelSameUnitPending:
+          unit?.unitType === "FULL_DHARAMSHALA" ||
+          availableUnitsAfterApproval <= 0,
+      });
+
       logger.info("approveRejectBooking approve completed", {
         bookingId: booking._id,
         bookingNumber: booking.bookingNumber,
@@ -1383,6 +1531,7 @@ async function approveRejectBooking(data) {
         balanceAmount: booking.balanceAmount,
         paymentStatus: booking.paymentStatus,
         bookingStatus: booking.bookingStatus,
+        autoCancelledCount,
       });
     } else {
       booking.bookingStatus = BOOKING_STATUS.REJECTED;
