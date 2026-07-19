@@ -40,6 +40,9 @@ const PostCommentSchema = new mongoose.Schema(
 
 PostCommentSchema.index({ postId: 1, createdAt: -1 });
 PostCommentSchema.index({ userId: 1 });
+PostCommentSchema.index({ postId: 1, status: 1, createdAt: -1 });
+PostCommentSchema.index({ parentCommentId: 1, status: 1, createdAt: 1 });
+PostCommentSchema.index({ userId: 1, status: 1, createdAt: -1 });
 
 module.exports = mongoose.model(
   "post_comment",

@@ -227,6 +227,35 @@ const DharamshalaDonationSchema = new mongoose.Schema(
   }
 );
 
+DharamshalaDonationSchema.index({
+  dharamshalaId: 1,
+  status: 1,
+  donationDate: -1,
+});
+DharamshalaDonationSchema.index({
+  dharamshalaId: 1,
+  status: 1,
+  createdAt: -1,
+});
+DharamshalaDonationSchema.index({
+  donorUserId: 1,
+  status: 1,
+  createdAt: -1,
+});
+DharamshalaDonationSchema.index({
+  depositStatus: 1,
+  status: 1,
+  createdAt: -1,
+});
+DharamshalaDonationSchema.index({
+  itemStatus: 1,
+  status: 1,
+  createdAt: -1,
+});
+DharamshalaDonationSchema.index({
+  receiptNumber: 1,
+});
+
 module.exports = mongoose.model(
   "dharamshala_donation",
   DharamshalaDonationSchema

@@ -7,6 +7,8 @@ const PostShare = require("../models/PostShare");
 const ReportSpam = require("../models/ReportSpam");
 const User = require("../models/User");
 const UserFollow = require("../models/UserFollow");
+const UserFollowRequest = require("../models/UserFollowRequest");
+const UserBlock = require("../models/UserBlock");
 const buildResponse = require("../utils/response");
 const DataConstant = require("../constants/DataConstant");
 const logger = require("../utils/logger");
@@ -53,6 +55,82 @@ function formatDate(date) {
   )}-${d.getFullYear()} ${pad(d.getHours())}:${pad(
     d.getMinutes()
   )}:${pad(d.getSeconds())}`;
+}
+
+function isVideoMediaUrl(url = "") {
+  return /\.(mp4|m4v|mov|webm|mkv)(?:$|[?#])/i.test(url);
+}
+
+function buildCloudinaryImageThumbnailUrl(url = "") {
+  if (!url.includes("/image/upload/")) return url;
+
+  return url.replace(
+    "/image/upload/",
+    "/image/upload/w_900,q_auto:good,f_auto/"
+  );
+}
+
+function buildCloudinaryVideoPosterUrl(url = "") {
+  if (!url.includes("/video/upload/")) return "";
+
+  const withoutQuery = url.split("?")[0] || url;
+  const posterUrl = withoutQuery.replace(
+    /\/video\/upload\/(.*)\/([^/.]+)\.(mp4|m4v|mov|webm|mkv)$/i,
+    "/video/upload/so_0,w_900,q_auto:good,f_jpg/$1/$2.jpg"
+  );
+
+  return posterUrl === withoutQuery ? "" : posterUrl;
+}
+
+function normalizeMediaType(uploaded = {}, url = "") {
+  if (uploaded.resourceType === "video" || isVideoMediaUrl(url)) {
+    return "VIDEO";
+  }
+
+  if (uploaded.resourceType === "image" || url.includes("/image/upload/")) {
+    return "IMAGE";
+  }
+
+  return "OTHER";
+}
+
+function buildMediaItemFromUpload(uploaded) {
+  const url = uploaded?.url || "";
+  const mediaType = normalizeMediaType(uploaded, url);
+  const posterUrl = mediaType === "VIDEO" ? buildCloudinaryVideoPosterUrl(url) : "";
+  const thumbnailUrl =
+    mediaType === "IMAGE" ? buildCloudinaryImageThumbnailUrl(url) : posterUrl;
+
+  return {
+    url,
+    thumbnailUrl,
+    posterUrl,
+    mediaType,
+    width: uploaded?.width || null,
+    height: uploaded?.height || null,
+    duration: uploaded?.duration || null,
+    publicId: uploaded?.publicId || "",
+    format: uploaded?.format || "",
+  };
+}
+
+function buildLegacyMediaItem(url) {
+  const mediaType = normalizeMediaType({}, url);
+  const posterUrl = mediaType === "VIDEO" ? buildCloudinaryVideoPosterUrl(url) : "";
+  const thumbnailUrl =
+    mediaType === "IMAGE" ? buildCloudinaryImageThumbnailUrl(url) : posterUrl;
+
+  return {
+    url,
+    thumbnailUrl,
+    posterUrl,
+    mediaType,
+    width: null,
+    height: null,
+    duration: null,
+    publicId: "",
+    format: "",
+  };
 }
 
 function parseDateOnly(dateStr, endOfDay = false) {
@@ -103,6 +181,10 @@ function mapPostResponse(post, loggedInUserId = null, ownerSocialMap = {}) {
     title: post.title,
     description: post.description,
     mediaUrls: post.mediaUrls || [],
+    mediaItems:
+      Array.isArray(post.mediaItems) && post.mediaItems.length > 0
+        ? post.mediaItems
+        : (post.mediaUrls || []).map(buildLegacyMediaItem),
     type: post.type,
     eventDate: formatDate(post.eventDate),
 
@@ -139,6 +221,156 @@ userResponse: user
 
     createdAt: formatDate(post.createdAt),
   };
+}
+
+function toObjectId(id) {
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    return null;
+  }
+
+  return new mongoose.Types.ObjectId(id);
+}
+
+async function buildOwnerSocialMap(ownerIds = [], viewerId = null) {
+  const normalizedOwnerIds = [
+    ...new Set(ownerIds.map(String).filter(Boolean)),
+  ];
+
+  if (normalizedOwnerIds.length === 0) {
+    return {};
+  }
+
+  const ownerObjectIds = normalizedOwnerIds
+    .map((id) => toObjectId(id))
+    .filter(Boolean);
+  const viewerObjectId = toObjectId(viewerId);
+
+  const [followersCounts, followingCounts] = await Promise.all([
+    UserFollow.aggregate([
+      {
+        $match: {
+          followingId: { $in: ownerObjectIds },
+          status: 1,
+        },
+      },
+      { $group: { _id: "$followingId", count: { $sum: 1 } } },
+    ]),
+    UserFollow.aggregate([
+      {
+        $match: {
+          followerId: { $in: ownerObjectIds },
+          status: 1,
+        },
+      },
+      { $group: { _id: "$followerId", count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  const followersCountMap = followersCounts.reduce((result, item) => {
+    result[item._id.toString()] = item.count;
+    return result;
+  }, {});
+  const followingCountMap = followingCounts.reduce((result, item) => {
+    result[item._id.toString()] = item.count;
+    return result;
+  }, {});
+
+  let blockByOwnerId = {};
+  let followingOwnerIds = new Set();
+  let requestedOwnerIds = new Set();
+  let pendingApprovalOwnerIds = new Set();
+
+  if (viewerObjectId) {
+    const targetOwnerObjectIds = ownerObjectIds.filter(
+      (ownerId) => ownerId.toString() !== viewerObjectId.toString()
+    );
+
+    const [blocks, follows, sentRequests, incomingRequests] =
+      await Promise.all([
+        UserBlock.find({
+          status: 1,
+          $or: [
+            { blockerId: viewerObjectId, blockedUserId: { $in: targetOwnerObjectIds } },
+            { blockerId: { $in: targetOwnerObjectIds }, blockedUserId: viewerObjectId },
+          ],
+        })
+          .select("blockerId blockedUserId")
+          .lean(),
+        UserFollow.find({
+          followerId: viewerObjectId,
+          followingId: { $in: targetOwnerObjectIds },
+          status: 1,
+        })
+          .select("followingId")
+          .lean(),
+        UserFollowRequest.find({
+          requesterId: viewerObjectId,
+          targetUserId: { $in: targetOwnerObjectIds },
+          status: "PENDING",
+        })
+          .select("targetUserId")
+          .lean(),
+        UserFollowRequest.find({
+          requesterId: { $in: targetOwnerObjectIds },
+          targetUserId: viewerObjectId,
+          status: "PENDING",
+        })
+          .select("requesterId")
+          .lean(),
+      ]);
+
+    blockByOwnerId = blocks.reduce((result, block) => {
+      const blockerId = block.blockerId?.toString();
+      const blockedUserId = block.blockedUserId?.toString();
+      const viewerIdString = viewerObjectId.toString();
+      const ownerId =
+        blockerId === viewerIdString ? blockedUserId : blockerId;
+
+      if (ownerId) {
+        result[ownerId] =
+          blockerId === viewerIdString ? "BLOCKED_BY_ME" : "BLOCKED_ME";
+      }
+
+      return result;
+    }, {});
+    followingOwnerIds = new Set(
+      follows.map((follow) => follow.followingId?.toString()).filter(Boolean)
+    );
+    requestedOwnerIds = new Set(
+      sentRequests
+        .map((request) => request.targetUserId?.toString())
+        .filter(Boolean)
+    );
+    pendingApprovalOwnerIds = new Set(
+      incomingRequests
+        .map((request) => request.requesterId?.toString())
+        .filter(Boolean)
+    );
+  }
+
+  return normalizedOwnerIds.reduce((result, ownerId) => {
+    let followStatus = "NONE";
+
+    if (viewerObjectId && ownerId === viewerObjectId.toString()) {
+      followStatus = "SELF";
+    } else if (blockByOwnerId[ownerId]) {
+      followStatus = blockByOwnerId[ownerId];
+    } else if (followingOwnerIds.has(ownerId)) {
+      followStatus = "FOLLOWING";
+    } else if (requestedOwnerIds.has(ownerId)) {
+      followStatus = "REQUESTED";
+    } else if (pendingApprovalOwnerIds.has(ownerId)) {
+      followStatus = "PENDING_APPROVAL";
+    }
+
+    result[ownerId] = {
+      followStatus,
+      followersCount: followersCountMap[ownerId] || 0,
+      followingCount: followingCountMap[ownerId] || 0,
+    };
+
+    return result;
+  }, {});
 }
 
 function getUserDisplayName(user) {
@@ -798,6 +1030,7 @@ async function createPostService(body, files, loggedInUserId) {
     }
 
     const mediaUrls = [];
+    const mediaItems = [];
 
     if (files && files.length > 0) {
       for (const file of files) {
@@ -813,6 +1046,7 @@ async function createPostService(body, files, loggedInUserId) {
 
           if (uploaded?.url) {
             mediaUrls.push(uploaded.url);
+            mediaItems.push(buildMediaItemFromUpload(uploaded));
           }
       }
     }
@@ -821,6 +1055,7 @@ async function createPostService(body, files, loggedInUserId) {
       title,
       description,
       mediaUrls,
+      mediaItems,
       userId: loggedInUserId,
       dharamshalaId: dharamshalaId || null,
       type: type || "POST",
@@ -943,6 +1178,10 @@ async function editPostService(body, files, loggedInUserId) {
     }
 
     let currentMediaUrls = post.mediaUrls || [];
+    let currentMediaItems =
+      Array.isArray(post.mediaItems) && post.mediaItems.length > 0
+        ? post.mediaItems
+        : currentMediaUrls.map(buildLegacyMediaItem);
 
     const urlsToRemove = parseRemoveMediaUrls(removeMediaUrls);
 
@@ -953,6 +1192,9 @@ async function editPostService(body, files, loggedInUserId) {
 
       currentMediaUrls = currentMediaUrls.filter(
         (url) => !urlsToRemove.includes(url)
+      );
+      currentMediaItems = currentMediaItems.filter(
+        (item) => !urlsToRemove.includes(item.url)
       );
     }
 
@@ -968,11 +1210,13 @@ async function editPostService(body, files, loggedInUserId) {
 
               if (uploaded?.url) {
                 currentMediaUrls.push(uploaded.url);
+                currentMediaItems.push(buildMediaItemFromUpload(uploaded));
               }
       }
     }
 
     post.mediaUrls = currentMediaUrls;
+    post.mediaItems = currentMediaItems;
 
     await post.save();
 
@@ -1446,31 +1690,7 @@ async function getFeedService(query) {
         ),
       ];
 
-      const ownerSocialEntries = await Promise.all(
-        ownerIds.map(async (ownerId) => {
-          const [followStatus, counts] =
-            await Promise.all([
-              visibilityService.getFollowStatus(
-                loggedInUserId,
-                ownerId
-              ),
-              visibilityService.getFollowCounts(
-                ownerId
-              ),
-            ]);
-
-          return [
-            ownerId,
-            {
-              followStatus,
-              ...counts,
-            },
-          ];
-        })
-      );
-
-      ownerSocialMap =
-        Object.fromEntries(ownerSocialEntries);
+      ownerSocialMap = await buildOwnerSocialMap(ownerIds, loggedInUserId);
     }
 
     const content = finalPosts.map((post) => {

@@ -41,6 +41,8 @@ UserFollowRequestSchema.index(
 );
 UserFollowRequestSchema.index({ targetUserId: 1, status: 1, createdAt: -1 });
 UserFollowRequestSchema.index({ requesterId: 1, status: 1, createdAt: -1 });
+UserFollowRequestSchema.index({ requesterId: 1, targetUserId: 1, status: 1 });
+UserFollowRequestSchema.index({ targetUserId: 1, requesterId: 1, status: 1 });
 
 module.exports = mongoose.model(
   "user_follow_request",

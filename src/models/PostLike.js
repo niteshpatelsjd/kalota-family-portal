@@ -32,5 +32,7 @@ PostLikeSchema.index(
 );
 
 PostLikeSchema.index({ postId: 1 });
+PostLikeSchema.index({ postId: 1, status: 1, createdAt: -1 });
+PostLikeSchema.index({ userId: 1, status: 1, createdAt: -1 });
 
 module.exports = mongoose.model("post_like", PostLikeSchema);

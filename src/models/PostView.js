@@ -28,5 +28,8 @@ const PostViewSchema = new mongoose.Schema(
 PostViewSchema.index({ postId: 1 });
 PostViewSchema.index({ userId: 1 });
 PostViewSchema.index({ postId: 1, userId: 1 });
+PostViewSchema.index({ postId: 1, createdAt: -1 });
+PostViewSchema.index({ postId: 1, deviceId: 1 });
+PostViewSchema.index({ userId: 1, createdAt: -1 });
 
 module.exports = mongoose.model("post_view", PostViewSchema);

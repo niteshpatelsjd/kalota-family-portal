@@ -25,6 +25,16 @@ async function uploadToCloudinary(
 
       url:
         result.secure_url,
+      resourceType:
+        result.resource_type,
+      format:
+        result.format,
+      width:
+        result.width || null,
+      height:
+        result.height || null,
+      duration:
+        result.duration || null,
     };
   } catch (error) {
     throw error;

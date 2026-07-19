@@ -21,6 +21,48 @@ const PostSchema = new mongoose.Schema(
       },
     ],
 
+    mediaItems: [
+      {
+        url: {
+          type: String,
+          required: true,
+        },
+        thumbnailUrl: {
+          type: String,
+          default: "",
+        },
+        posterUrl: {
+          type: String,
+          default: "",
+        },
+        mediaType: {
+          type: String,
+          enum: ["IMAGE", "VIDEO", "OTHER"],
+          default: "IMAGE",
+        },
+        width: {
+          type: Number,
+          default: null,
+        },
+        height: {
+          type: Number,
+          default: null,
+        },
+        duration: {
+          type: Number,
+          default: null,
+        },
+        publicId: {
+          type: String,
+          default: "",
+        },
+        format: {
+          type: String,
+          default: "",
+        },
+      },
+    ],
+
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "user", // or mobile_user if mobile users post
@@ -82,5 +124,8 @@ PostSchema.index({ userId: 1, createdAt: -1 });
 PostSchema.index({ dharamshalaId: 1, createdAt: -1 });
 PostSchema.index({ type: 1, createdAt: -1 });
 PostSchema.index({ status: 1, createdAt: -1 });
+PostSchema.index({ status: 1, dharamshalaId: 1, createdAt: -1 });
+PostSchema.index({ status: 1, userId: 1, createdAt: -1 });
+PostSchema.index({ status: 1, type: 1, createdAt: -1 });
 
 module.exports = mongoose.model("post", PostSchema);

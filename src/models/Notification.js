@@ -85,6 +85,28 @@ const NotificationSchema = new mongoose.Schema(
   }
 );
 
+NotificationSchema.index({
+  userId: 1,
+  status: 1,
+  createdAt: -1,
+});
+NotificationSchema.index({
+  userId: 1,
+  isRead: 1,
+  status: 1,
+  createdAt: -1,
+});
+NotificationSchema.index({
+  sentStatus: 1,
+  status: 1,
+  createdAt: 1,
+});
+NotificationSchema.index({
+  type: 1,
+  status: 1,
+  createdAt: -1,
+});
+
 module.exports = mongoose.model(
   "notification",
   NotificationSchema

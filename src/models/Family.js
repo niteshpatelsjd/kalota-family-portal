@@ -75,6 +75,19 @@ familySchema.index({
   tehsilId: 1,
   villageId: 1,
 });
+familySchema.index({
+  villageId: 1,
+  status: 1,
+  createdAt: -1,
+});
+familySchema.index({
+  familyHeadId: 1,
+  status: 1,
+});
+familySchema.index({
+  status: 1,
+  createdAt: -1,
+});
 
 module.exports = mongoose.model(
   "Family",

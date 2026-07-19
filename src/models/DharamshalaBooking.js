@@ -181,6 +181,34 @@ DharamshalaBookingSchema.index({
   status: 1,
   createdAt: -1,
 });
+DharamshalaBookingSchema.index({
+  dharamshalaId: 1,
+  status: 1,
+  createdAt: -1,
+});
+DharamshalaBookingSchema.index({
+  dharamshalaId: 1,
+  bookingStatus: 1,
+  status: 1,
+  createdAt: -1,
+});
+DharamshalaBookingSchema.index({
+  userId: 1,
+  bookingStatus: 1,
+  status: 1,
+  createdAt: -1,
+});
+DharamshalaBookingSchema.index({
+  unitId: 1,
+  status: 1,
+  bookingFromDate: 1,
+  bookingToDate: 1,
+});
+DharamshalaBookingSchema.index({
+  paymentStatus: 1,
+  status: 1,
+  createdAt: -1,
+});
 
 module.exports = mongoose.model(
   "dharamshala_booking",

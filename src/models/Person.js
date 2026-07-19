@@ -234,14 +234,29 @@ const personSchema =
 personSchema.index({
   familyId: 1,
 });
+personSchema.index({
+  familyId: 1,
+  status: 1,
+  createdAt: -1,
+});
 
 personSchema.index({
   familyRefId: 1,
   relationType: 1,
 });
+personSchema.index({
+  familyRefId: 1,
+  status: 1,
+  relationType: 1,
+});
 
 personSchema.index({
   villageId: 1,
+});
+personSchema.index({
+  villageId: 1,
+  status: 1,
+  createdAt: -1,
 });
 
 personSchema.index({

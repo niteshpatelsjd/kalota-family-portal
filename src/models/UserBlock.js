@@ -41,5 +41,7 @@ UserBlockSchema.index(
 );
 UserBlockSchema.index({ blockerId: 1, status: 1 });
 UserBlockSchema.index({ blockedUserId: 1, status: 1 });
+UserBlockSchema.index({ blockerId: 1, blockedUserId: 1, status: 1 });
+UserBlockSchema.index({ status: 1, blockerId: 1, blockedUserId: 1 });
 
 module.exports = mongoose.model("user_block", UserBlockSchema);

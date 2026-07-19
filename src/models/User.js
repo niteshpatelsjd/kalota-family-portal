@@ -142,4 +142,12 @@ const UserSchema = new mongoose.Schema(
   }
 );
 
+UserSchema.index({ mobileNumber: 1 });
+UserSchema.index({ familyId: 1 });
+UserSchema.index({ familyHeadId: 1 });
+UserSchema.index({ districtId: 1, tehsilId: 1, villageId: 1 });
+UserSchema.index({ villageId: 1, verificationStatus: 1, status: 1, createdAt: -1 });
+UserSchema.index({ verificationStatus: 1, status: 1, createdAt: -1 });
+UserSchema.index({ status: 1, createdAt: -1 });
+
 module.exports = mongoose.model("user", UserSchema);
