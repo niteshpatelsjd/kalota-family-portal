@@ -1022,13 +1022,6 @@ async function createPostService(body, files, loggedInUserId) {
       );
     }
 
-    if (!description) {
-      return buildResponse(
-        DataConstant.CLIENT_ERROR.BAD_REQUEST,
-        "description is required"
-      );
-    }
-
     const mediaUrls = [];
     const mediaItems = [];
 
@@ -1053,7 +1046,7 @@ async function createPostService(body, files, loggedInUserId) {
 
     const post = await Post.create({
       title,
-      description,
+      description: description || "",
       mediaUrls,
       mediaItems,
       userId: loggedInUserId,
